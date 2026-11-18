@@ -33,7 +33,7 @@
   color: #10243a;
 }
 .content {
-  padding: 10px max(12px, env(safe-area-inset-right)) calc(92px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  padding: 10px max(12px, env(safe-area-inset-right)) calc(var(--bottom-nav-height) + 24px) max(12px, env(safe-area-inset-left));
 }
 .date { display: flex; align-items: center; gap: 7px; color: #3c5949; font-size: .875rem; font-weight: 650; }
 h1 { font-size: 1.65rem; font-weight: 800; }
@@ -198,7 +198,8 @@ button:disabled { opacity: .6; }
   --success: #39b879;
   --ivory: #f5f4ec;
   --line: #d9ded5;
-  scroll-padding-bottom: calc(82px + env(safe-area-inset-bottom));
+  --bottom-nav-height: calc(68px + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(var(--bottom-nav-height) + 14px);
 }
 .masthead { border-bottom: 1px solid #435346; }
 .masthead .shell {
@@ -404,7 +405,9 @@ button:disabled { opacity: .6; }
   z-index: 4; background: #10243a; border-top: 1px solid #b9974a;
   padding-inline: max(4px, env(safe-area-inset-left)) max(4px, env(safe-area-inset-right));
 }
-.bottom-nav button { min-height: 51px; color: #dce9e5; font-size: .67rem; border-radius: 7px; }
+.bottom-nav button { min-width: 0; min-height: 51px; padding-block: 4px; color: #dce9e5; font-size: .875rem; line-height: 1.2; border-radius: 7px; }
+.bottom-nav button svg { flex: none; }
+.bottom-nav button span { max-width: 100%; overflow-wrap: anywhere; text-align: center; }
 .bottom-nav button[aria-current] { color: #ffdd82; background: #223e4d; }
 @media (max-width: 360px) {
   .scoreboard .date { font-size: .66rem; }

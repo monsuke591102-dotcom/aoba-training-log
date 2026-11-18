@@ -72,6 +72,8 @@ function QuickRow({ data, date, kind, menu, commit, open, select, rule }: {
       <div className="quick-steps">
         <StepButton direction="minus" label={menu.name + 'を減らす'} disabled={skipped || open || total <= floor} step={n => { void apply({ delta: -n }) }} />
         <StepButton direction="plus" label={menu.name + 'を増やす'} disabled={skipped || open} step={n => { void apply({ delta: n }) }} />
+        <span className="quick-hold-preview minus">離すと −10</span>
+        <span className="quick-hold-preview plus">離すと ＋10</span>
       </div>
     </div>
     {rate !== null && <progress className="meter" max={100} value={Math.min(rate, 100)} aria-label={menu.name + 'の達成率 ' + rate + '%'} />}

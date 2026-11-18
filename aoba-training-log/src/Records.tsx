@@ -116,7 +116,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
           {records.map(record => (
             <li key={record.id}>
               <p className="hint"><time dateTime={record.date}>{record.date}</time> · {record.kind} · {record.category}</p>
-              <p className="entry-title">{record.menuName} <span>{record.amount}{record.unit}</span></p>
+              <p className="entry-title">{record.menuName} <span className="record-amount">{record.amount}{record.unit}</span></p>
               {record.durationMinutes !== undefined && <p className="hint">所要時間 {record.durationMinutes}分</p>}
               {record.rating !== undefined && <p className="hint">自己評価 {record.rating} / 5</p>}
               {record.note && <p className="entry-note">{record.note}</p>}

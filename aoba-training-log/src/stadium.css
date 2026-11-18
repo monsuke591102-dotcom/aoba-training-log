@@ -211,7 +211,7 @@
 .bottom-nav button[aria-current] { background: linear-gradient(#254d83, #132b53); color: #ffdb85; }
 :focus-visible { outline-color: #ffdb85; }
 .milestone-region {
-  position: fixed; z-index: 5; inset: auto 0 calc(70px + env(safe-area-inset-bottom));
+  position: fixed; z-index: 5; inset: auto 0 calc(var(--bottom-nav-height) + 8px);
   padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
   pointer-events: none;
 }
@@ -273,10 +273,19 @@
   border-bottom: 1px solid #4584b2; padding-bottom: 6px;
 }
 .arena .scoreboard h1 { font-size: clamp(.99rem, 4.9vw, 1.5rem); margin: 0; }
-.arena .scoreboard .date { font-size: .69rem; white-space: nowrap; }
+.arena .scoreboard .date { font-size: .875rem; }
 .arena .scoreboard-body {
   grid-template-columns: clamp(114px, 41vw, 183px) minmax(0, 1fr);
   gap: 7px; padding-top: 5px;
+}
+.arena .scoreboard { container: scoreboard / inline-size; }
+.scoreboard-body > :not(.gauge, .score-brief) { grid-column: 1 / -1; }
+.scoreboard-body > .score-link { justify-self: start; }
+.score-brief { grid-column: 2; grid-row: 1; }
+@container scoreboard (width < 19rem) {
+  .arena .scoreboard-body { grid-template-columns: minmax(0, 1fr); }
+  .arena .gauge { width: min(100%, clamp(154px, 9rem, 190px)); justify-self: center; }
+  .score-brief { grid-column: 1; grid-row: auto; }
 }
 .arena .gauge {
   background: radial-gradient(circle, #124e78 14%, #031329 50%, transparent 68%);
@@ -287,9 +296,9 @@
 .arena .gauge-track { stroke: #08192d; stroke-width: 12; }
 .arena .gauge-fill { stroke: url(#ring-progress); stroke-width: 11; }
 .arena .gauge-text strong { font-size: clamp(1.85rem, 9vw, 3rem); font-weight: 900; }
-.arena .gauge-text > span { color: #dff8ff; }
+.arena .gauge-text > span { max-width: 75%; color: #dff8ff; font-size: .875rem; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
 .score-brief { min-width: 0; padding: 6px; border: 1px solid #30577d; border-radius: 8px; background: #041529c9; }
-.score-count { color: #cde9ff; font-size: .7rem; }
+.score-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .6em; color: #cde9ff; font-size: .7rem; }
 .score-count strong { color: #fff; font-size: 1.07rem; }
 .score-summary li {
   display: grid; grid-template-columns: 15px minmax(0, 1fr); gap: 0 4px;
@@ -303,8 +312,8 @@
 .arena .score-plan { margin-top: 4px; }
 .arena .score-record {
   border-radius: 999px; min-height: 50px; border: 2px solid #ffe6a6; color: #fff;
-  background: linear-gradient(180deg, #ffcb83 0, #ff8d28 16%, #ee5b03 51%, #c63800 52%, #e44b00 89%, #ff8b2a 100%);
-  box-shadow: inset 0 1px #fff8da, inset 0 -2px 4px #ffac283d, 0 3px 0 #8d3607, 0 0 9px #fc8b2570;
+  background: linear-gradient(180deg, #b84912 0%, #a4400c 48%, #873008 52%, #a93e0c 100%);
+  box-shadow: 0 3px 0 #8d3607, 0 0 9px #fc8b2540;
   font-size: clamp(.93rem, 4.4vw, 1.28rem); text-shadow: 0 2px 2px #612400;
 }
 .arena .score-record:active { box-shadow: inset 0 2px 5px #8a2c09, 0 1px 0 #8d3607; }
@@ -332,6 +341,10 @@
 .medal-lock { z-index: 3; bottom: -2px; right: -2px; }
 .medal-lock svg { width: 13px; height: 13px; }
 .badge-title .medal { width: 95px; height: 95px; }
+.home-activity { container: recent-days / inline-size; }
+@container recent-days (width < 332px) {
+  .home-activity .activity { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 [data-screen="ホーム"] .activity time { background: #eaf3f7; color: #142844; border-color: #8ab1c8; }
 [data-screen="ホーム"] .activity .recorded { background: #dcf8e4; border-color: #86c29a; }
 [data-screen="ホーム"] .activity .game-day { background: #fff1d9; border-color: #dfab58; }
@@ -364,23 +377,30 @@
 .restore-counts th, .restore-counts td { padding: 6px 4px; text-align: right; border-bottom: 1px solid #43618a; }
 .restore-counts th:first-child { text-align: left; }
 
-.quick-panel { padding-inline: 10px; }
+.quick-panel { padding-inline: 10px; container: quick-record / inline-size; }
 .quick-date { font-size: .75rem; max-width: 100%; }
 .quick-date input { max-width: 100%; }
-.quick-help { margin-top: 5px; color: #c5d8ef; font-size: .8rem; }
+.quick-help { margin-top: 5px; color: #c5d8ef; font-size: .875rem; }
 .quick-help summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
 .quick-list { display: grid; gap: 7px; margin-top: 5px; }
 .quick-row { min-width: 0; padding: 6px; border: 1px solid #436692; background: #0e2446; border-radius: 8px; }
-.quick-row-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; }
+.quick-row-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
 .quick-value {
   min-height: 44px; display: flex; align-items: center; gap: 5px;
   text-align: left; min-width: 0; overflow-wrap: anywhere;
 }
 .quick-value .equipment { flex: 0 0 28px; width: 28px; height: 28px; }
-.quick-value-text { display: grid; min-width: 0; gap: 1px; font-size: .8rem; }
-.quick-value-text > span { color: #c5d8ef; font-size: .72rem; }
-.quick-value-text b { color: #fff; font-size: .95rem; }
-.quick-steps { display: flex; gap: 4px; }
+.quick-value-text { display: grid; min-width: 0; gap: 1px; font-size: 1rem; line-height: 1.35; }
+.quick-value-text > span { color: #c5d8ef; font-size: .875rem; }
+.quick-value-text b { color: #fff; font-size: 1.5rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.quick-steps { display: grid; grid-template-columns: repeat(2, 44px); gap: 4px 8px; }
+.quick-hold-preview { display: none; grid-column: 1 / -1; color: #ffdd85; font-size: .875rem; text-align: center; overflow-wrap: anywhere; }
+.quick-step.minus[data-held] ~ .quick-hold-preview.minus,
+.quick-step.plus[data-held] ~ .quick-hold-preview.plus { display: block; }
+@container quick-record (width < 18rem) {
+  .quick-row-top { grid-template-columns: minmax(0, 1fr); }
+  .quick-steps { justify-self: end; }
+}
 .quick-step {
   display: grid; place-items: center; min-width: 44px; width: 44px; height: 44px;
   padding: 0; touch-action: pan-y; user-select: none; -webkit-touch-callout: none;
@@ -401,7 +421,7 @@
 }
 .plan-dialog::backdrop { background: #040d21b8; }
 .plan-dialog .plan-close { min-width: 44px; width: 44px; padding: 0; display: grid; place-items: center; }
-#home-quick-records { scroll-margin-block: 12px 90px; }
+#home-quick-records { scroll-margin-block-start: 12px; }
 .quick-panel .quick-row { padding: 4px 6px; }
 .activity-plan-marker { display: inline-flex; align-items: center; gap: 1px; }
 
@@ -423,11 +443,20 @@
 .excel-preview-item > fieldset { padding: 0 10px 10px; }
 .excel-preview-select { display: flex; align-items: center; gap: 9px; min-height: 49px; padding: 6px 9px; cursor: pointer; }
 .excel-preview-select input { flex: none; width: 19px; height: 19px; accent-color: #63afff; }
-.excel-preview-select strong { font-size: .86rem; }
-.excel-preview-meta { display: block; color: #c5d8ef; font-size: .76rem; }
+.excel-preview-select strong { font-size: 1rem; }
+.excel-preview-meta { display: block; color: #c5d8ef; font-size: .875rem; }
 .excel-preview-group { background: #0e2446; }
 .excel-preview-group summary { padding: 10px; min-height: 44px; cursor: pointer; color: #ffda85; }
-.excel-preview-group summary span { font-size: .75rem; color: #c5d8ef; }
+.excel-preview-group summary span { font-size: .875rem; color: #c5d8ef; }
 .excel-preview-group .excel-preview-item { border: 0; border-top: 1px solid #365578; border-radius: 0; }
-.excel-preview-confirm { align-items: center; font-size: .85rem; }
+.excel-preview-confirm { align-items: center; font-size: .875rem; }
+.routine-name-field { display: grid; margin-top: 5px; }
+.routine-name-field > * {
+  grid-area: 1 / 1; min-width: 0; min-height: 46px; margin: 0; padding: 8px;
+  border-width: 1px; font-size: 1rem; font-weight: 400; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.routine-name-field > span { visibility: hidden; }
+.routine-name-field > textarea { resize: none; }
+.entry-title .record-amount { display: inline-block; padding-left: .35em; color: var(--text); font-size: 1.125rem; font-variant-numeric: tabular-nums; }
 .import-draft-item > .routine-item { padding: 10px; border-top: 1px solid #365578; }

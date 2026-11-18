@@ -167,7 +167,7 @@ export function Calendar({ data, commit, onRecord, onReflection, initialDate }: 
           {!rest && records.length === 0 && <p className="hint">まだ記録がありません。</p>}
           <ul className="entries">{records.map(record => <li key={record.id}>
             <p className="kind-line hint"><ActivityIcon kind={record.kind} />{record.kind}</p>
-            <p className="entry-title">{record.menuName} <span>{record.amount}{record.unit}</span></p>
+            <p className="entry-title">{record.menuName} <span className="record-amount">{record.amount}{record.unit}</span></p>
             {skips.some(skip => skip.menuId === record.menuId) && <p className="hint">見送り中 · 日次達成率の集計対象外</p>}
             {record.note && <p className="entry-note">{record.note}</p>}
             <button className="action edit-menu" aria-label={record.menuName + 'の記録を編集'} onClick={() => onRecord(selected, record.kind, record.id)}>記録を編集</button>

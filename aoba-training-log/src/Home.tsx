@@ -156,28 +156,32 @@ export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge
         </header>
         <div className="scoreboard-body">
           <Gauge rate={daily.rate} pending={pendingGauge} />
+          <div className="score-plan">
+            <div><strong>今日の予定</strong>
+              <p>{plan ? <><ActivityIcon kind={plan.kind} />{plan.kind}{planNames.length > 0 && ' · ' + planNames.join('、')}</> : '予定区分なし'}
+                {rests.has(date) && <span className="score-rest">休養日を記録済み</span>}
+              </p>
+            </div>
+            <button onClick={event => { event.currentTarget.focus({ preventScroll: true }); setPlanDate(date) }} className="score-link">{plan ? '予定を編集' : '予定を入れる'}</button>
+          </div>
+          {(plan || skips.length > 0) && <button className="score-link" onClick={onPlan}>予定メニュー・見送りを見る</button>}
+          <button className="primary score-record" onClick={() => {
+            const panel = document.getElementById('home-quick-records')
+            panel?.focus({ preventScroll: true })
+            panel?.scrollIntoView({ block: 'start' })
+          }}><Baseball size={30} />練習を記録する<ChevronRight size={19} aria-hidden="true" /></button>
           <div className="score-brief">
-            <p className="score-count">実施 <strong>{completedCount}</strong> · 未実施 <strong>{pendingCount}</strong> · 見送り <strong>{skips.length}</strong></p>
+            <p className="score-count">
+              <span>実施 <strong>{completedCount}</strong></span>
+              <span>未実施 <strong>{pendingCount}</strong></span>
+              <span>見送り <strong>{skips.length}</strong></span>
+            </p>
             {rows.size > 0 ? <ul className="score-summary">{[...rows].slice(0, 3).map(([key, item]) =>
               <li key={key}><Equipment category={item.category} /><span>{item.name}</span>
                 <strong>{item.skipped ? '見送り' : item.amount === undefined ? '—' : showQuantity(item.amount, item.unit)}{item.target !== undefined && <small> / {showQuantity(item.target, item.unit)}</small>}</strong></li>
             )}</ul> : <p className="score-summary-empty">今日の実績は<br />ここに表示されます。</p>}
           </div>
         </div>
-        <div className="score-plan">
-          <div><strong>今日の予定</strong>
-            <p>{plan ? <><ActivityIcon kind={plan.kind} />{plan.kind}{planNames.length > 0 && ' · ' + planNames.join('、')}</> : '予定区分なし'}
-              {rests.has(date) && <span className="score-rest">休養日を記録済み</span>}
-            </p>
-          </div>
-          <button onClick={event => { event.currentTarget.focus({ preventScroll: true }); setPlanDate(date) }} className="score-link">{plan ? '予定を編集' : '予定を入れる'}</button>
-        </div>
-        {(plan || skips.length > 0) && <button className="score-link" onClick={onPlan}>予定メニュー・見送りを見る</button>}
-        <button className="primary score-record" onClick={() => {
-          const panel = document.getElementById('home-quick-records')
-          panel?.focus({ preventScroll: true })
-          panel?.scrollIntoView({ block: 'start' })
-        }}><Baseball size={30} />練習を記録する<ChevronRight size={19} aria-hidden="true" /></button>
       </section>
     </div>
 
@@ -195,7 +199,7 @@ export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge
       {goal ? <Meter value={week.days} max={goal} label={'週間目標 ' + week.rate + '%'} /> : <div className="meter-empty" aria-hidden="true" />}
     </section>
 
-    <section className="club-panel" aria-labelledby="activity-title">
+    <section className="club-panel home-activity" aria-labelledby="activity-title">
       <h2 id="activity-title"><CalendarDays size={19} aria-hidden="true" />直近7日間</h2>
       <ul className="activity grid grid-cols-7">{recentDays(today).map(day => {
         const key = localDate(day)

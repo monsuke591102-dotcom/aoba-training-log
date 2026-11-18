@@ -55,7 +55,22 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
   const [milestone, setMilestone] = useState<Milestone>()
   const milestoneId = useRef(0)
   const pendingGauge = useRef(false)
+  const nav = useRef<HTMLElement>(null)
   const [previous, setPrevious] = useState<Tab>('ホーム')
+
+  useEffect(() => {
+    const bar = nav.current
+    if (!bar) return
+    const root = document.documentElement
+    const measure = () => root.style.setProperty('--bottom-nav-height', Math.ceil(bar.getBoundingClientRect().height) + 'px')
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(bar, { box: 'border-box' })
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--bottom-nav-height')
+    }
+  }, [])
 
   useEffect(() => {
     if (!milestone) return
@@ -159,7 +174,7 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
         <button onClick={() => setMilestone(undefined)} aria-label="お知らせを閉じる"><X size={18} aria-hidden="true" /></button>
       </div>}
     </aside>
-    <nav className="bottom-nav" aria-label="メインナビゲーション">
+    <nav ref={nav} className="bottom-nav" aria-label="メインナビゲーション">
       <div className="shell grid grid-cols-5">
         {navigation.map(({ label, icon: Icon }) => (
           <button key={label} type="button" disabled={!data}

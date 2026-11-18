@@ -8,7 +8,13 @@ export function RoutineFields({ item, menus, change }: { item: RoutineItem; menu
   const unit = item.recordUnit ?? menu?.unit
   const mode = item.mode ?? (menu ? 'quantity' : 'display')
   return <fieldset className="fields">
-    <label>種目名<input value={item.name} onChange={event => change({ ...item, name: event.target.value })} /></label>
+    <label>種目名
+      <span className="routine-name-field">
+        <span aria-hidden="true">{item.name || ' '}</span>
+        <textarea rows={1} value={item.name}
+          onChange={event => change({ ...item, name: event.target.value.replace(/\n/g, ' ') })} />
+      </span>
+    </label>
     <label>記録メニュー<select value={item.menuId ?? ''} onChange={event => {
       const next = menus.find(menu => menu.id === event.target.value)
       change({ ...item, menuId: next?.id, recordUnit: next?.unit, mode: next ? 'quantity' : undefined, name: item.name || next?.name || '', target: undefined })

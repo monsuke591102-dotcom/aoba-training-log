@@ -7,6 +7,7 @@ import { errorMessage, type Commit } from './recordFeedback'
 import { trainingKinds } from './training'
 
 const labelDate = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
+const planKinds: (Plan['kind'] | '')[] = [...trainingKinds, '休養日', '']
 
 export function PlanDialog({ date, existing, commit, close }: { date: LocalDate; existing?: Plan; commit: Commit; close: () => void }) {
   const [original] = useState(existing)
@@ -60,11 +61,16 @@ export function PlanDialog({ date, existing, commit, close }: { date: LocalDate;
     <p className="hint">現在の予定 · {existing?.kind ?? '予定なし'}</p>
     <form className="editor" onSubmit={submit}>
       <fieldset className="fields" disabled={busy}>
-        <label>予定の種類<select autoFocus value={kind} onChange={event => setKind(event.target.value as typeof kind)}>
-          {trainingKinds.map(value => <option key={value}>{value}</option>)}
-          <option>休養日</option>
-          <option value="">予定なし（登録解除）</option>
-        </select></label>
+        <fieldset className="plan-kind-field">
+          <legend>予定の種類</legend>
+          <div className="plan-kind-grid">
+            {planKinds.map(value => <label className="plan-choice" key={value}>
+              <input type="radio" name="home-plan-kind" value={value} checked={kind === value}
+                autoFocus={value === (original?.kind ?? '')} onChange={() => setKind(value)} />
+              <span className="plan-choice-face">{value || '予定なし（登録解除）'}</span>
+            </label>)}
+          </div>
+        </fieldset>
         {original && original.kind !== '休養日' && original.menuIds.length > 0 && (kind === '' || kind === '休養日') &&
           <p className="hint">予定メニューの指定も解除されます。練習記録や見送り履歴は残ります。</p>}
         <div className="form-actions">

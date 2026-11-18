@@ -414,13 +414,31 @@
 .activity-edit-day { display: block; width: 100%; min-width: 0; min-height: 44px; border-radius: 8px; }
 .activity-edit-day:active time { outline: 1px solid #ffda85; outline-offset: -2px; }
 .plan-dialog {
-  position: fixed; inset: 0; margin: auto;
+  position: fixed; margin: auto;
+  inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   width: min(27rem, calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
   max-height: calc(100dvh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   color: #e9f2ff; overflow: auto; overscroll-behavior: contain;
 }
 .plan-dialog::backdrop { background: #040d21b8; }
 .plan-dialog .plan-close { min-width: 44px; width: 44px; padding: 0; display: grid; place-items: center; }
+.plan-kind-field { min-width: 0; }
+.plan-kind-field legend { margin-bottom: 6px; font-weight: 700; }
+.plan-kind-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.plan-choice { position: relative; cursor: pointer; }
+.plan-choice:last-child { grid-column: 1 / -1; }
+.plan-kind-grid .plan-choice input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  opacity: 0; cursor: inherit;
+}
+.plan-choice-face {
+  display: grid; place-items: center; text-align: center;
+  min-height: 56px; height: 100%; padding: 8px; border: 2px solid #5078ae;
+  border-radius: 9px; background: #10294c; color: #f2f7ff; font-size: 1rem; overflow-wrap: anywhere;
+}
+.plan-choice input:checked + .plan-choice-face { background: #2466a8; border-color: #ffdb85; font-weight: 850; }
+.plan-choice input:focus-visible + .plan-choice-face { outline: 2px solid #ffdb85; outline-offset: 2px; }
+.plan-choice input:disabled { cursor: default; }
 #home-quick-records { scroll-margin-block-start: 12px; }
 .quick-panel .quick-row { padding: 4px 6px; }
 .activity-plan-marker { display: inline-flex; align-items: center; gap: 1px; }

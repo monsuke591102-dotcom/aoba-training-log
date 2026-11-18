@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), offlineShell()],
     base: env.VITE_BASE_PATH || '/',
+    build: { target: ['chrome107', 'edge107', 'firefox104', 'safari16'], cssTarget: 'safari16' },
     envPrefix: [],
     define: { __TRAINING_CLOUD_CONFIG__: JSON.stringify(cloud) },
   }

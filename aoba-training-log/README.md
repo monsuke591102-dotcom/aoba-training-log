@@ -1,6 +1,6 @@
 # AOBA TRAINING LOG
 
-中学生の野球選手向けの自主練習管理アプリ。現在は Phase 4E.1 です。練習メニュー・記録・目標と履歴は、開いたブラウザーの IndexedDB に保存します。配信元やブラウザープロファイルを変えると保存先も変わります。予定・休養日・振り返りも端末内に保存します。
+中学生の野球選手向けの自主練習管理アプリです。練習メニュー・記録・目標と履歴、予定・休養日・振り返りは、開いたブラウザーの IndexedDB に保存します。配信元やブラウザープロファイルを変えると保存先も変わります。
 
 ## Windows で起動
 
@@ -24,6 +24,21 @@ GitHub Pages のようにサブパスで配信する場合は、ビルド時に�
 $env:VITE_BASE_PATH = "/aoba-training-log/"
 pnpm.cmd build
 ```
+
+## GitHub Pages での公開準備
+
+1. 公開の承認後、GitHub のユーザー名とリポジトリ名を確定します。リポジトリの **Settings → Pages → Build and deployment → Source** で **GitHub Actions** を選びます。
+2. クラウド同期を使う場合は **Settings → Secrets and variables → Actions → Variables** に `VITE_SUPABASE_URL` と `VITE_SUPABASE_PUBLISHABLE_KEY` を登録します。値はブラウザーに配信するビルドに含まれます。Supabase の管理用キーや `.env.local` は GitHub Actions に渡さないでください。
+3. Supabase の **Authentication → URL Configuration** で、確定した HTTPS の公開 URL を **Site URL** と **Redirect URLs** に登録します。プロジェクトサイトの場合はリポジトリのサブパスと末尾の `/` を含めます。登録確認メールのリンクから同じ URL に戻れることを公開時に確認します。
+4. 承認後、**Actions → Deploy AOBA TRAINING LOG to GitHub Pages → Run workflow** を手動で実行します。ワークフローは Pages から受け取ったサブパスでビルドし、テスト合格後に `dist` を配信します。
+
+### iPhone のホーム画面に追加
+
+1. Safari で HTTPS の公開 URL を開きます。
+2. 共有メニューから「ホーム画面に追加」を選びます。「Webアプリとして開く」が表示される場合はオンにして追加します。
+3. 「AOBA LOG」のアイコンから起動し、公開 URL のホームが開くことを確認します。オンラインで一度開いた後に、オフラインでも再起動できることを確認します。
+
+ローカル開発版と公開版の保存領域は分かれます。公開前に既存の記録をJSONでバックアップし、同期済みのアカウントは公開版へのログイン後にクラウドの状態を確認してください。iOS 16 Safari ではファイル保存時に通常のダウンロードへ切り替わる場合があります。
 
 ## データモデル
 

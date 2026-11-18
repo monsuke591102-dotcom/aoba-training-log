@@ -1,0 +1,29 @@
+node_modules/
+dist/
+.pnpm-store/
+
+.env
+.env.*
+!.env.example
+
+# Local records and exports
+aoba-training-log-backup*.json
+backups/
+
+# Build and tool output
+coverage/
+.vite/
+.cache/
+.tmp/
+tmp/
+*.log
+*.tmp
+*~
+
+# Local editor and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+Desktop.ini

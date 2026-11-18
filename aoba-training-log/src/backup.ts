@@ -1,0 +1,161 @@
+import { fromLocalDate, isLocalDate } from './dates'
+import { categories, units } from './initialData'
+import { skipReasons, type TrainingData } from './model'
+import { trainingKinds } from './training'
+
+const appId = 'aoba-training-log'
+const backupVersion = 1
+const dataVersion: TrainingData['schemaVersion'] = 3
+
+export interface Backup {
+  appId: typeof appId
+  backupVersion: typeof backupVersion
+  createdAt: string
+  dataVersion: typeof dataVersion
+  data: TrainingData
+}
+
+export class BackupError extends Error {}
+
+type Row = Record<string, unknown>
+const object = (value: unknown): value is Row => value !== null && typeof value === 'object' && !Array.isArray(value)
+const string = (value: unknown): value is string => typeof value === 'string'
+const nonempty = (value: unknown): value is string => string(value) && value.trim().length > 0
+const date = (value: unknown) => string(value) && isLocalDate(value)
+const timestamp = (value: unknown) => {
+  if (!string(value) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false
+  const parsed = new Date(value)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value
+}
+const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= Number.MAX_SAFE_INTEGER
+const quantity = (value: unknown, unit: unknown) => positive(value) && (unit === '分' || Number.isInteger(value))
+const oneOf = (value: unknown, choices: readonly unknown[]) => choices.includes(value)
+const timestamps = (row: Row) => timestamp(row.createdAt) && timestamp(row.updatedAt)
+
+function validateRows(value: unknown, label: string, valid: (row: Row) => boolean, key: (row: Row) => unknown): Row[] {
+  if (!Array.isArray(value)) throw new BackupError(label + 'の一覧がありません。')
+  const seen = new Set<unknown>()
+  return value.map((row: unknown, index) => {
+    if (!object(row) || !valid(row)) throw new BackupError(label + 'の' + (index + 1) + '件目に不正な項目があります。')
+    const id = key(row)
+    if (seen.has(id)) throw new BackupError(label + 'に重複があります。')
+    seen.add(id)
+    return row
+  })
+}
+
+export function validateData(data: unknown): asserts data is TrainingData {
+  if (!object(data) || data.schemaVersion !== dataVersion) {
+    throw new BackupError('データ本体のバージョンが一致しません。')
+  }
+  const menus = validateRows(data.menus, '練習メニュー', row => nonempty(row.id) && nonempty(row.name) &&
+    oneOf(row.category, categories) && oneOf(row.unit, units) && typeof row.enabled === 'boolean', row => row.id)
+  const ids = new Set(menus.map(menu => menu.id))
+  const hasMenu = (row: Row) => ids.has(row.menuId) && nonempty(row.menuName) && oneOf(row.unit, units)
+  validateRows(data.records, '練習記録', row => nonempty(row.id) && date(row.date) && hasMenu(row) &&
+    oneOf(row.kind, trainingKinds) && oneOf(row.category, categories) && quantity(row.amount, row.unit) &&
+    (row.entrySource === undefined || row.entrySource === 'quick') &&
+    (row.durationMinutes === undefined || positive(row.durationMinutes)) && string(row.note) &&
+    (row.rating === undefined || oneOf(row.rating, [1, 2, 3, 4, 5])) && timestamps(row), row => row.id)
+  validateRows(data.plans, '練習予定', row => date(row.date) && (row.kind === '休養日' ||
+    (oneOf(row.kind, trainingKinds) && Array.isArray(row.menuIds) &&
+      row.menuIds.every(id => ids.has(id)) && new Set(row.menuIds).size === row.menuIds.length)), row => row.date)
+  // A skip can outlive a deleted or edited plan.
+  validateRows(data.skippedMenus, '見送り', row => date(row.date) && ids.has(row.menuId) &&
+    nonempty(row.menuName) && oneOf(row.reason, skipReasons) && string(row.note) && timestamps(row),
+  row => JSON.stringify([row.date, row.menuId]))
+  validateRows(data.rests, '休養日の記録', row => date(row.date) && timestamp(row.createdAt), row => row.date)
+  validateRows(data.goals, '目標・変更履歴', row => {
+    if (!nonempty(row.id) || !date(row.effectiveFrom) || !timestamp(row.changedAt)) return false
+    switch (row.kind) {
+      case 'weekly': return row.days === null || oneOf(row.days, [1, 2, 3, 4, 5, 6, 7])
+      case 'menu':
+      case 'daily-menu': return hasMenu(row) && (row.amount === null || quantity(row.amount, row.unit))
+      case 'skill': return string(row.text)
+      default: return false
+    }
+  }, row => row.id)
+  validateRows(data.reflections, '振り返り', row => string(row.date) && isLocalDate(row.date) &&
+    (row.period === 'day' || (row.period === 'week' && fromLocalDate(row.date).getDay() === 1)) &&
+    string(row.success) && string(row.challenge) && string(row.next) && timestamp(row.updatedAt) &&
+    (row.createdAt === undefined || timestamp(row.createdAt)), row => JSON.stringify([row.period, row.date]))
+  const routineItems = new Set<unknown>()
+  if (data.routineVersions !== undefined) {
+    const sources = new Set<unknown>()
+    validateRows(data.routineVersions, '曜日別計画', row => {
+      if (!nonempty(row.id) || !date(row.startsOn)) return false
+      if (row.sourceKey !== undefined) {
+        if (!nonempty(row.sourceKey) || sources.has(row.sourceKey)) return false
+        sources.add(row.sourceKey)
+      }
+      const linked = new Set<unknown>()
+      validateRows(row.items, '計画の種目', item => {
+        if (!nonempty(item.id) || !nonempty(item.name) || !string(item.note) || !string(item.condition) ||
+          !oneOf(item.schedule, ['daily', 'weekdays', 'conditional']) || !Array.isArray(item.weekdays) ||
+          item.weekdays.some(day => !oneOf(day, [0, 1, 2, 3, 4, 5, 6])) ||
+          new Set(item.weekdays).size !== item.weekdays.length ||
+          (item.schedule === 'weekdays' ? item.weekdays.length === 0 : item.weekdays.length > 0)) return false
+        if ((item.group !== undefined && !nonempty(item.group)) ||
+          (item.mode !== undefined && !oneOf(item.mode, ['check', 'quantity'])) ||
+          (item.recordUnit !== undefined && !oneOf(item.recordUnit, units))) return false
+        if (item.menuId !== undefined) {
+          if (!ids.has(item.menuId) || linked.has(item.menuId)) return false
+          linked.add(item.menuId)
+        }
+        routineItems.add(item.id)
+        return item.target === undefined || (item.menuId !== undefined && object(item.target) &&
+          oneOf(item.target.unit, units) && quantity(item.target.amount, item.target.unit))
+      }, item => item.id)
+      return true
+    }, row => row.id)
+  }
+  if (data.routineCompletions !== undefined) validateRows(data.routineCompletions, '計画の完了チェック',
+    row => date(row.date) && routineItems.has(row.itemId), row => JSON.stringify([row.date, row.itemId]))
+  if (data.routineAdditions !== undefined) validateRows(data.routineAdditions, '条件付き計画の追加',
+    row => date(row.date) && routineItems.has(row.itemId), row => JSON.stringify([row.date, row.itemId]))
+}
+
+export function encodeBackup(data: TrainingData, now = new Date()): string {
+  validateData(data)
+  const backup: Backup = { appId, backupVersion, createdAt: now.toISOString(), dataVersion, data }
+  return JSON.stringify(backup, null, 2)
+}
+
+export function decodeBackup(text: string): Backup {
+  let value: unknown
+  try {
+    value = JSON.parse(text.replace(/^\uFEFF/, ''))
+  } catch {
+    throw new BackupError('JSONを読み取れません。ファイルが壊れていないか確認してください。')
+  }
+  if (!object(value) || value.appId !== appId) throw new BackupError('AOBA TRAINING LOGのバックアップを選んでください。')
+  if (value.backupVersion !== backupVersion || value.dataVersion !== dataVersion) {
+    throw new BackupError('このバックアップのバージョンには対応していません。')
+  }
+  if (!string(value.createdAt) || !timestamp(value.createdAt)) throw new BackupError('バックアップの作成日時が不正です。')
+  validateData(value.data)
+  return { appId, backupVersion, dataVersion, createdAt: value.createdAt, data: value.data }
+}
+
+export function backupCounts(data: TrainingData): [string, number][] {
+  return [
+    ['練習記録', data.records.length], ['練習予定', data.plans.length], ['目標・変更履歴', data.goals.length],
+    ['振り返り', data.reflections.length], ['見送り', data.skippedMenus.length], ['休養日の記録', data.rests.length],
+    ['練習メニュー', data.menus.length], ['曜日別計画', data.routineVersions?.length ?? 0],
+    ['条件付き計画の追加', data.routineAdditions?.length ?? 0], ['計画の完了チェック', data.routineCompletions?.length ?? 0],
+  ]
+}
+
+export function restoreChange(backup: Backup, expected: TrainingData) {
+  const snapshot = JSON.stringify(expected)
+  return (current: TrainingData) => {
+    if (JSON.stringify(current) !== snapshot) {
+      throw new BackupError('確認中に現在のデータが変更されました。ファイルを選び直してください。')
+    }
+    return backup.data
+  }
+}
+
+
+
+

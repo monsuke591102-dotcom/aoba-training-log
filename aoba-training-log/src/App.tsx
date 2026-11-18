@@ -1,0 +1,184 @@
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { CalendarDays, ChartNoAxesColumnIncreasing, ClipboardList, House, Settings2, Trophy, X } from 'lucide-react'
+import { BadgeDetail, type Badge } from './Badges'
+import { Baseball } from './BaseballArt'
+import { dailyStats, managementProgress } from './progress'
+import { CloudAccount } from './CloudAccount'
+import { DataManagement } from './DataManagement'
+import { Calendar } from './Calendar'
+import { localDate } from './dates'
+import { Home } from './Home'
+import type { LocalDate, TrainingData, TrainingKind } from './model'
+import { Records, type Commit } from './Records'
+import { Reflections } from './Reflections'
+import { Settings } from './Settings'
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from './cloud'
+import type { Change } from './storage'
+import { useTrainingStorage } from './useTrainingStorage'
+
+const Growth = lazy(() => import('./Growth'))
+const PlanManagement = lazy(() => import('./PlanManagement'))
+
+const navigation = [
+  { label: 'ホーム', icon: House },
+  { label: '記録', icon: ClipboardList },
+  { label: 'カレンダー', icon: CalendarDays },
+  { label: '成長', icon: ChartNoAxesColumnIncreasing },
+  { label: '設定', icon: Settings2 },
+] as const
+
+type Tab = typeof navigation[number]['label']
+type Page = Tab | '振り返り' | 'バッジ' | 'データ管理' | 'クラウド' | '練習計画'
+
+interface Milestone { level?: number; badges: string[]; id: number }
+
+export function App() {
+  const [page, setPage] = useState<Page>('ホーム')
+  const [session, setSession] = useState<Session | null | undefined>(supabase ? undefined : null)
+  useEffect(() => {
+    if (!supabase) return
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, current) => setSession(current))
+    return () => subscription.unsubscribe()
+  }, [])
+  if (session === undefined) return <main className="shell content"><p role="status">ログイン状態を確認しています。</p></main>
+  return <TrainingApp key={session?.user.id ?? 'guest'} session={session} page={page} setPage={setPage} />
+}
+
+function TrainingApp({ session, page, setPage }: { session: Session | null; page: Page; setPage: (page: Page) => void }) {
+  const storage = useTrainingStorage(session)
+  const { data, load, loadFailed } = storage
+  const [recordStart, setRecordStart] = useState<{ date?: LocalDate; kind?: TrainingKind; id?: string }>()
+  const [calendarDate, setCalendarDate] = useState(() => localDate(new Date()))
+  const [reflectionDate, setReflectionDate] = useState(() => localDate(new Date()))
+  const [badgeId, setBadgeId] = useState<Badge['id']>()
+  const [milestone, setMilestone] = useState<Milestone>()
+  const milestoneId = useRef(0)
+  const pendingGauge = useRef(false)
+  const [previous, setPrevious] = useState<Tab>('ホーム')
+
+  useEffect(() => {
+    if (!milestone) return
+    const timer = window.setTimeout(() => setMilestone(undefined), 6500)
+    return () => window.clearTimeout(timer)
+  }, [milestone])
+
+  const commit: Commit = async change => {
+    const now = new Date()
+    const date = localDate(now)
+    let notice: Omit<Milestone, 'id'> | undefined
+    let gaugeChanged = false
+    await storage.update(before => {
+      const after = change(before)
+      const earlier = managementProgress(before, now)
+      const latest = managementProgress(after, now)
+      const earned = new Set(earlier.badges.filter(badge => badge.earnedAt).map(badge => badge.id))
+      const badges = latest.badges.filter(badge => badge.earnedAt && !earned.has(badge.id)).map(badge => badge.label)
+      const level = latest.level > earlier.level ? latest.level : undefined
+      if (level || badges.length) notice = { level, badges }
+      gaugeChanged = dailyStats(before, date).rate !== dailyStats(after, date).rate
+      return after
+    })
+    if (gaugeChanged) pendingGauge.current = true
+    if (notice) setMilestone({ ...notice, id: ++milestoneId.current })
+  }
+
+  async function restore(change: Change) {
+    await storage.update(change)
+    pendingGauge.current = false
+    setMilestone(undefined)
+  }
+
+  function navigate(nextPage: Page) {
+    setPage(nextPage)
+    window.scrollTo(0, 0)
+  }
+
+  function record(date: LocalDate, kind?: TrainingKind, id?: string) {
+    setRecordStart({ date, kind, id })
+    setCalendarDate(date)
+    navigate('記録')
+  }
+
+  function reflect(date: LocalDate, from: Tab) {
+    setReflectionDate(date)
+    setPrevious(from)
+    setCalendarDate(date)
+    navigate('振り返り')
+  }
+
+  const badge = data && page === 'バッジ' ? managementProgress(data, new Date()).badges.find(item => item.id === badgeId) : undefined
+
+  return <>
+    <header className="masthead"><div className="shell"><span className="brand-mark"><Baseball size={27} /></span>AOBA TRAINING LOG</div></header>
+    <main className="shell content" data-screen={page}>
+      {data ? <>
+        {storage.sync?.decision && page !== 'クラウド' && <section className="card section-toolbar">
+          <p>{storage.sync.decision.kind === 'initial' ? '初回同期の確認が必要です。' : '同期するデータの選択が必要です。'}</p>
+          <button className="action" onClick={() => navigate('クラウド')}>同期内容を確認</button>
+        </section>}
+        {page === 'ホーム' && <Home data={data}
+          commit={commit}
+          onPlan={() => { setCalendarDate(localDate(new Date())); navigate('カレンダー') }}
+          onReflection={() => reflect(localDate(new Date()), 'ホーム')}
+          pendingGauge={pendingGauge}
+          onBadge={id => { setBadgeId(id); navigate('バッジ') }} />}
+        {badge && <BadgeDetail badge={badge} back={() => {
+          navigate('ホーム')
+          requestAnimationFrame(() => {
+            const item = document.getElementById('medal-' + badge.id)
+            item?.scrollIntoView({ block: 'center' })
+            item?.focus({ preventScroll: true })
+          })
+        }} />}
+        {page === '記録' && <Records data={data} commit={commit} start={recordStart} />}
+        {page === '設定' && <Settings data={data} commit={commit} onDataManagement={() => navigate('データ管理')} onCloudAccount={() => navigate('クラウド')} onPlanManagement={() => navigate('練習計画')} />}
+        {page === '練習計画' && <Suspense fallback={<p role="status">練習計画を読み込んでいます。</p>}>
+          <PlanManagement data={data} commit={commit} back={() => navigate('設定')} read={storage.read} />
+        </Suspense>}
+        {page === 'クラウド' && <CloudAccount back={() => navigate('設定')} session={session} sync={storage.sync} />}
+        {page === 'データ管理' && <DataManagement back={() => navigate('設定')} restore={restore} read={storage.read} />}
+        {page === 'カレンダー' && <Calendar data={data} commit={commit} initialDate={calendarDate} onRecord={record}
+          onReflection={date => reflect(date, 'カレンダー')} />}
+        {page === '振り返り' && <Reflections data={data} commit={commit} initialDate={reflectionDate} back={() => navigate(previous)} />}
+        {page === '成長' && <Suspense fallback={<p role="status">グラフを読み込んでいます。</p>}><Growth data={data} /></Suspense>}
+      </> : <section className="card">
+        {loadFailed ? <>
+          <p className="error" role="alert">データを読み込めませんでした。</p>
+          <button className="action" onClick={load}>もう一度読み込む</button>
+        </> : <p role="status">データを読み込んでいます。</p>}
+      </section>}
+    </main>
+    <aside className="milestone-region shell" aria-live="polite" aria-atomic="true">
+      {milestone && <div className="milestone" key={milestone.id}>
+        <span className="milestone-icon"><Trophy size={20} aria-hidden="true" /></span>
+        <div>
+          {milestone.level && <p><strong>レベルアップ！ Lv. {milestone.level}</strong></p>}
+          {milestone.badges.length > 0 && <p><strong>バッジ獲得</strong> · {milestone.badges.join('、')}</p>}
+        </div>
+        <button onClick={() => setMilestone(undefined)} aria-label="お知らせを閉じる"><X size={18} aria-hidden="true" /></button>
+      </div>}
+    </aside>
+    <nav className="bottom-nav" aria-label="メインナビゲーション">
+      <div className="shell grid grid-cols-5">
+        {navigation.map(({ label, icon: Icon }) => (
+          <button key={label} type="button" disabled={!data}
+            aria-current={label === (page === '振り返り' ? previous : page === 'バッジ' ? 'ホーム' : (page === 'データ管理' || page === 'クラウド' || page === '練習計画') ? '設定' : page) ? 'page' : undefined}
+            onClick={() => { setRecordStart(undefined); navigate(label) }}>
+            <Icon size={22} aria-hidden="true" /><span>{label}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  </>
+}
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,164 @@
+import { Target } from 'lucide-react'
+import { ScreenTitle } from './ScreenTitle'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { localDate } from './dates'
+import { categories, units } from './initialData'
+import type { Goal, Menu, TrainingData } from './model'
+import { errorMessage, rejectInvalidNumber, type Commit } from './Records'
+import { currentGoal, menuStats, saveGoals, saveMenu, weekDates } from './training'
+
+function MenuEditor({ menu, data, commit, close, create = false }: { menu: Menu; data: TrainingData; commit: Commit; close: () => void; create?: boolean }) {
+  const [draft, setDraft] = useState(menu)
+  const savedDaily = currentGoal(data.goals, 'daily-menu', localDate(new Date()), menu.id)
+  const initialDaily = String(savedDaily?.unit === menu.unit ? savedDaily.amount ?? '' : '')
+  const [daily, setDaily] = useState(initialDaily)
+  const [target, setTarget] = useState(String(menuStats(data, menu, new Date()).target ?? ''))
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      rejectInvalidNumber(event.currentTarget)
+      await commit(data => saveMenu(data, draft, target, new Date(), daily, create))
+      close()
+    } catch (error) {
+      setError(errorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="editor" noValidate onSubmit={submit}>
+      <fieldset className="fields" disabled={busy}>
+        <label>メニュー名<input required value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /></label>
+        <label>カテゴリ<select value={draft.category} onChange={event => setDraft({ ...draft, category: event.target.value as Menu['category'] })}>
+          {categories.map(category => <option key={category}>{category}</option>)}
+        </select></label>
+        <label>記録単位<select value={draft.unit} onChange={event => {
+          const unit = event.target.value as Menu['unit']
+          setDraft({ ...draft, unit })
+          setDaily(unit === menu.unit ? initialDaily : '')
+          setTarget(unit === menu.unit ? String(menuStats(data, menu, new Date()).target ?? '') : '')
+        }}>{units.map(unit => <option key={unit}>{unit}</option>)}</select></label>
+        <label>週間目標値（{draft.unit}・任意）<input type="number" value={target} onChange={event => setTarget(event.target.value)} /></label>
+        <label>日次目標値（{draft.unit}・任意）<input type="number" placeholder="未設定" value={daily} onChange={event => setDaily(event.target.value)} /></label>
+        <label className="checkbox"><input type="checkbox" checked={draft.enabled} onChange={event => setDraft({ ...draft, enabled: event.target.checked })} />新しい記録で使う</label>
+        <div className="form-actions"><button className="action filled" type="submit">メニューを保存</button><button className="action" type="button" onClick={close}>キャンセル</button></div>
+      </fieldset>
+      {error && <p className="error" role="alert">{error}</p>}
+    </form>
+  )
+}
+
+function goalLabel(goal: Goal) {
+  switch (goal.kind) {
+    case 'weekly': return '週間練習日数 ' + (goal.days === null ? '未設定' : goal.days + '日')
+    case 'menu': return goal.menuName + 'の週間目標 ' + (goal.amount === null ? '未設定' : goal.amount + goal.unit)
+    case 'daily-menu': return goal.menuName + 'の日次目標 ' + (goal.amount === null ? '未設定' : goal.amount + goal.unit)
+    case 'skill': return '技術目標 ' + (goal.text || '未設定')
+  }
+}
+
+export function Settings({ data, commit, onDataManagement, onCloudAccount, onPlanManagement }: { data: TrainingData; commit: Commit; onDataManagement: () => void; onCloudAccount: () => void; onPlanManagement: () => void }) {
+  const today = new Date()
+  const date = localDate(today)
+  const [start, end] = weekDates(today)
+  const [days, setDays] = useState(String(currentGoal(data.goals, 'weekly', date)?.days ?? ''))
+  const [skill, setSkill] = useState(currentGoal(data.goals, 'skill', date)?.text ?? '')
+  const [menuId, selectMenu] = useState<string | null>(null)
+  const [newMenu, setNewMenu] = useState<Menu>()
+  const [feedback, setFeedback] = useState<{ error: boolean; text: string }>()
+  const [busy, setBusy] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBusy(true)
+    setFeedback(undefined)
+    try {
+      rejectInvalidNumber(event.currentTarget)
+      await commit(data => saveGoals(data, days, skill))
+      setFeedback({ error: false, text: '目標を保存しました。' })
+    } catch (error) {
+      setFeedback({ error: true, text: errorMessage(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <ScreenTitle title="目標・メニュー設定" icon={Target} />
+      <section className="card section-toolbar"><h2>曜日・月次計画</h2><button className="action" onClick={onPlanManagement}>練習計画の管理</button></section>
+      <section className="card section-toolbar"><h2>データ管理</h2><button className="action" onClick={onDataManagement}>バックアップ・復元</button></section>
+      <section className="card section-toolbar"><h2>クラウド</h2><button className="action" onClick={onCloudAccount}>クラウドアカウント</button></section>
+      <section className="card">
+        <h2 className="section-heading">練習の目標</h2>
+        <p className="hint">今週 {start} 〜 {end}（月〜日）</p>
+        <form className="editor" noValidate onSubmit={submit}>
+          <fieldset disabled={busy} className="fields">
+            <label>週間練習日数（任意）<input type="number" inputMode="numeric" placeholder="未設定" value={days} onChange={event => setDays(event.target.value)} /></label>
+            <label>技術目標（任意）<textarea rows={2} placeholder="未設定" value={skill} onChange={event => setSkill(event.target.value)} /></label>
+            <button className="action filled" type="submit">目標を保存</button>
+          </fieldset>
+          {feedback && <p className={feedback.error ? 'error' : 'hint'} role={feedback.error ? 'alert' : 'status'}>{feedback.text}</p>}
+        </form>
+      </section>
+      <section className="card">
+        <div className="section-toolbar">
+          <h2>練習メニュー</h2>
+          {!newMenu && <button className="action" onClick={() => {
+            selectMenu(null)
+            setNewMenu({ id: crypto.randomUUID(), name: '', category: 'その他', unit: '回', enabled: true })
+          }}>メニューを追加</button>}
+        </div>
+        {newMenu && <MenuEditor key={newMenu.id} menu={newMenu} data={data} commit={commit} create close={() => setNewMenu(undefined)} />}
+        <p className="hint">週間目標は月〜日。同じ単位の記録で集計します。</p>
+        {categories.map(category => (
+          <div className="menu-group" key={category}>
+            <h3>{category}</h3>
+            <ul className="entries">
+              {data.menus.filter(menu => menu.category === category).map(menu => {
+                const stats = menuStats(data, menu, today)
+                const daily = currentGoal(data.goals, 'daily-menu', date, menu.id)
+                return (
+                  <li key={menu.id}>
+                    <p className="entry-title">{menu.name} <span>{menu.enabled ? '有効' : '無効'}</span></p>
+                    <p className="hint">今週 {stats.amount}{menu.unit} · 目標 {stats.target === null ? '未設定' : stats.target + menu.unit + '（' + stats.rate + '%）'}</p>
+                    <p className="hint">日次目標 {daily?.amount != null && daily.unit === menu.unit ? daily.amount + menu.unit : '未設定'}</p>
+                    {menuId === menu.id
+                      ? <MenuEditor menu={menu} data={data} commit={commit} close={() => selectMenu(null)} />
+                      : <button className="action edit-menu" aria-label={menu.name + 'を編集'} onClick={() => { setNewMenu(undefined); selectMenu(menu.id) }}>編集</button>}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
+      </section>
+      <section className="card">
+        <h2>目標変更履歴</h2>
+        {data.goals.length === 0 && <p className="hint">変更履歴はありません。</p>}
+        <ul className="entries">
+          {[...data.goals].reverse().map(goal => (
+            <li key={goal.id}>
+              <p className="hint"><time dateTime={goal.changedAt}>{new Date(goal.changedAt).toLocaleString('ja-JP')}</time></p>
+              <p className="entry-note">{goalLabel(goal)}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  )
+}
+
+
+
+
+
+
+

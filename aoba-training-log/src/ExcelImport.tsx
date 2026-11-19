@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { importCandidates, readTrainingSheet, type ColumnMap } from './excelPlan'
 import type { Menu, RoutineItem } from './model'
 import { RoutineFields } from './RoutineFields'
+import { findRoutineMenu } from './routines'
 
 const labels: [keyof ColumnMap, string][] = [['name', '種目名'], ['schedule', '曜日・条件'], ['target', '数量・単位'], ['note', '補足・親メニュー']]
 type Candidate = { item: RoutineItem; selected: boolean; unresolved: boolean }
@@ -82,7 +83,7 @@ export function ExcelImport({ menus, useItems, close, backup }: {
     return <li key={item.id} className="excel-preview-item">
       <label className="excel-preview-select">
         <input type="checkbox" checked={candidate.selected} onChange={event => edit(index, { selected: event.target.checked })} />
-        <span><strong>{item.name}</strong>
+        <span><strong>{item.name}</strong>{findRoutineMenu(menus, item)?.enabled === false && <span className="excel-preview-meta">非表示</span>}
           <span className="excel-preview-meta">{schedule} · {item.target ? '目標 ' + item.target.amount + item.target.unit : '数量目標なし'}</span>
           {item.schedule !== 'conditional' && item.condition && <span className="excel-preview-meta">{item.condition}</span>}
           {matrix && item.note && <span className="excel-preview-meta">{item.note}</span>}

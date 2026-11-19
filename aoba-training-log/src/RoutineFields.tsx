@@ -20,7 +20,7 @@ export function RoutineFields({ item, menus, change }: { item: RoutineItem; menu
       change({ ...item, menuId: next?.id, recordUnit: next?.unit, mode: next ? 'quantity' : undefined, name: item.name || next?.name || '', target: undefined })
     }}>
       <option value="">計画の表示のみ</option>
-      {menus.map(menu => <option key={menu.id} value={menu.id}>{menu.name}（{menu.unit}）</option>)}
+      {menus.map(menu => <option key={menu.id} value={menu.id}>{menu.name}（{menu.unit}）{!menu.enabled && ' · 非表示'}</option>)}
     </select></label>
     <label>記録方法<select value={mode} onChange={event => {
       const value = event.target.value

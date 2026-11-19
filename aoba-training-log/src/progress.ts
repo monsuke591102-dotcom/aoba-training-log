@@ -4,10 +4,10 @@ import type { LocalDate, TrainingData } from './model'
 import { plannedMenuIds, routineItemForMenu } from './routines'
 import { currentGoal, weekDates } from './training'
 
-export function dailyStats(data: TrainingData, date: LocalDate) {
+export function dailyStats(data: TrainingData, date: LocalDate, today = localDate(new Date())) {
   const plan = data.plans.find(item => item.date === date)
   if (plan?.kind === '休養日' || data.rests.some(item => item.date === date)) return { entries: [], rate: null }
-  const planned = plannedMenuIds(data, date)
+  const planned = plannedMenuIds(data, date, today)
   const skipped = new Set(data.skippedMenus.filter(item => item.date === date).map(item => item.menuId))
   const records = data.records.filter(record => record.date === date)
   const recorded = new Set(records.map(record => record.menuId))

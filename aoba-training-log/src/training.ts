@@ -5,6 +5,13 @@ export class InputError extends Error {}
 
 export const trainingKinds: TrainingKind[] = ['自主練', 'チーム練習', '試合']
 
+export function setMenuEnabled(data: TrainingData, id: string, enabled: boolean): TrainingData {
+  const menu = data.menus.find(item => item.id === id)
+  if (!menu) throw new InputError('メニューが見つかりません。')
+  if (menu.enabled === enabled) return data
+  return { ...data, menus: data.menus.map(item => item.id === id ? { ...item, enabled } : item) }
+}
+
 export function weekDates(date: Date) {
   const day = date.getDate() - (date.getDay() + 6) % 7
   const year = date.getFullYear()

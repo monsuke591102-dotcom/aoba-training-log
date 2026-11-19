@@ -6,7 +6,7 @@ import { localDate } from './dates'
 import { categories, units } from './initialData'
 import type { Goal, Menu, TrainingData } from './model'
 import { errorMessage, rejectInvalidNumber, type Commit } from './Records'
-import { currentGoal, menuStats, saveGoals, saveMenu, weekDates } from './training'
+import { currentGoal, menuStats, saveGoals, saveMenu, setMenuEnabled, weekDates } from './training'
 
 function MenuEditor({ menu, data, commit, close, create = false }: { menu: Menu; data: TrainingData; commit: Commit; close: () => void; create?: boolean }) {
   const [draft, setDraft] = useState(menu)
@@ -72,6 +72,8 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
   const [skill, setSkill] = useState(currentGoal(data.goals, 'skill', date)?.text ?? '')
   const [menuId, selectMenu] = useState<string | null>(null)
   const [newMenu, setNewMenu] = useState<Menu>()
+  const [changingMenu, setChangingMenu] = useState<string>()
+  const [visibilityError, setVisibilityError] = useState('')
   const [feedback, setFeedback] = useState<{ error: boolean; text: string }>()
   const [busy, setBusy] = useState(false)
 
@@ -87,6 +89,18 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
       setFeedback({ error: true, text: errorMessage(error) })
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function changeVisibility(menu: Menu) {
+    setChangingMenu(menu.id)
+    setVisibilityError('')
+    try {
+      await commit(latest => setMenuEnabled(latest, menu.id, !menu.enabled))
+    } catch (error) {
+      setVisibilityError(errorMessage(error))
+    } finally {
+      setChangingMenu(undefined)
     }
   }
 
@@ -118,6 +132,7 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
         </div>
         {newMenu && <MenuEditor key={newMenu.id} menu={newMenu} data={data} commit={commit} create close={() => setNewMenu(undefined)} />}
         <p className="hint">週間目標は月〜日。同じ単位の記録で集計します。</p>
+        {visibilityError && <p className="error" role="alert">{visibilityError}</p>}
         {categories.map(category => (
           <div className="menu-group" key={category}>
             <h3>{category}</h3>
@@ -127,12 +142,17 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
                 const daily = currentGoal(data.goals, 'daily-menu', date, menu.id)
                 return (
                   <li key={menu.id}>
-                    <p className="entry-title">{menu.name} <span>{menu.enabled ? '有効' : '無効'}</span></p>
+                    <p className="entry-title">{menu.name} <span>{menu.enabled ? '表示中' : '非表示'}</span></p>
                     <p className="hint">今週 {stats.amount}{menu.unit} · 目標 {stats.target === null ? '未設定' : stats.target + menu.unit + '（' + stats.rate + '%）'}</p>
                     <p className="hint">日次目標 {daily?.amount != null && daily.unit === menu.unit ? daily.amount + menu.unit : '未設定'}</p>
                     {menuId === menu.id
                       ? <MenuEditor menu={menu} data={data} commit={commit} close={() => selectMenu(null)} />
-                      : <button className="action edit-menu" aria-label={menu.name + 'を編集'} onClick={() => { setNewMenu(undefined); selectMenu(menu.id) }}>編集</button>}
+                      : <div className="form-actions">
+                        <button className="action" disabled={changingMenu === menu.id} aria-label={menu.name + 'を編集'} onClick={() => { setNewMenu(undefined); selectMenu(menu.id) }}>編集</button>
+                        <button className="action" disabled={changingMenu !== undefined}
+                          aria-label={menu.name + 'を' + (menu.enabled ? '非表示' : '再表示')}
+                          onClick={() => void changeVisibility(menu)}>{menu.enabled ? '非表示' : '再表示'}</button>
+                      </div>}
                   </li>
                 )
               })}

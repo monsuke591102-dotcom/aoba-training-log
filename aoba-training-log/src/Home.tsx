@@ -111,11 +111,11 @@ export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge
   const today = fromLocalDate(date)
   const records = data.records.filter(record => record.date === date)
   const plan = data.plans.find(item => item.date === date)
-  const plannedMenus = [...plannedMenuIds(data, date)]
+  const plannedMenus = [...plannedMenuIds(data, date, date)]
   const rests = new Set(data.rests.map(item => item.date))
   const week = weeklyStats(data, today)
   const goal = currentGoal(data.goals, 'weekly', date)?.days
-  const daily = dailyStats(data, date)
+  const daily = dailyStats(data, date, date)
   const skips = data.skippedMenus.filter(item => item.date === date)
   const skippedIds = new Set(skips.map(item => item.menuId))
   const recordedIds = new Set(records.map(record => record.menuId))
@@ -127,10 +127,11 @@ export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge
   const rowKey = (id: string, unit: Unit) => id + ':' + unit
   for (const entry of daily.entries) {
     const menu = menus.get(entry.id)
-    if (menu) rows.set(rowKey(entry.id, entry.unit), { ...entry, category: menu.category })
+    if (menu?.enabled) rows.set(rowKey(entry.id, entry.unit), { ...entry, category: menu.category })
   }
   const recorded = new Map<string, MenuRow>()
   for (const record of records) {
+    if (menus.get(record.menuId)?.enabled === false) continue
     const key = rowKey(record.menuId, record.unit)
     const previous = recorded.get(key)
     recorded.set(key, {

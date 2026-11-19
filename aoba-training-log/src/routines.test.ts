@@ -10,6 +10,7 @@ import { dailyStats, managementProgress } from './progress'
 import { saveQuickRecord } from './quickRecord'
 import { dailyRoutine, nextMonth, plannedMenuIds, routineForDate, saveRoutine, setRoutineAddition, setRoutineCompletion } from './routines'
 import { syncOnce, type RemoteSnapshot, type SnapshotApi } from './sync'
+import { setMenuEnabled } from './training'
 
 const now = new Date(2026, 10, 16, 12)
 const monday = '2026-11-16'
@@ -90,7 +91,7 @@ test('計画と任意追加をJSONで往復し、既存版のJSONも読み込め
   expect(decodeBackup(encodeBackup(before, now)).data).toEqual(before)
 })
 
-test('オフライン保存した計画と関連する記録が別端末に復元される', async () => {
+test('オフライン保存した計画・記録とメニューの非表示状態が別端末に復元される', async () => {
   const a = createAccountStorage('a', 'routine-a-' + crypto.randomUUID())
   const b = createAccountStorage('a', 'routine-b-' + crypto.randomUUID())
   let remote: RemoteSnapshot | null = null
@@ -103,7 +104,8 @@ test('オフライン保存した計画と関連する記録が別端末に復�
     },
   }
   await a.save(data => saveRoutine(data, { id: 'v1', startsOn: monday, items }, now))
-  const expected = await a.save(data => saveQuickRecord(data, monday, 'swing', '回', '自主練', { delta: 10 }, now))
+  await a.save(data => saveQuickRecord(data, monday, 'swing', '回', '自主練', { delta: 10 }, now))
+  const expected = await a.save(data => setMenuEnabled(data, 'swing', false))
   expect(expected.generation).toBeGreaterThan(expected.syncedGeneration)
   for (const store of [a, b]) {
     let result
@@ -111,6 +113,26 @@ test('オフライン保存した計画と関連する記録が別端末に復�
     expect(result).toBe('synced')
   }
   expect((await b.read()).data).toEqual(expected.data)
+})
+
+test('非表示は当日と未来の候補から外れ、実績と過去集計を保持し、再表示で元の計画に戻る', () => {
+  let data = saveRoutine(initialData(), { id: 'v1', startsOn: monday, items }, now)
+  data = savePlan(data, { date: wednesday, kind: '自主練', menuIds: ['swing'] })
+  data = saveQuickRecord(data, monday, 'swing', '回', '自主練', { delta: 10 }, now)
+  const today = wednesday
+  const hidden = setMenuEnabled(setMenuEnabled(data, 'swing', false), 'grounder', false)
+  expect(hidden.records).toBe(data.records)
+  expect(hidden.goals).toBe(data.goals)
+  expect(hidden.plans).toBe(data.plans)
+  expect(hidden.routineVersions).toBe(data.routineVersions)
+  expect(dailyStats(hidden, monday, today)).toEqual(dailyStats(data, monday, today))
+  expect(dailyStats(data, wednesday, today).rate).toBe(0)
+  expect(dailyStats(hidden, wednesday, today).rate).toBeNull()
+  expect(plannedMenuIds(hidden, '2026-11-19', today).has('swing')).toBe(false)
+  expect(dailyRoutine(hidden, today, today).optional).toEqual([])
+  const recordedToday = saveQuickRecord(data, today, 'swing', '回', '自主練', { delta: 10 }, new Date(2026, 10, 18, 12))
+  expect(dailyStats(setMenuEnabled(recordedToday, 'swing', false), today, today).rate).toBe(50)
+  expect(setMenuEnabled(setMenuEnabled(hidden, 'swing', true), 'grounder', true)).toEqual(data)
 })
 
 test('単位・名称・所属グループの変更を新しい版として保存し、旧メニューを保持する', () => {

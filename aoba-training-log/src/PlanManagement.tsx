@@ -7,7 +7,7 @@ import { ExcelImport } from './ExcelImport'
 import type { LocalDate, Menu, RoutineItem, TrainingData } from './model'
 import { errorMessage, type Commit } from './recordFeedback'
 import { NewPlanMenu, RoutineFields } from './RoutineFields'
-import { nextMonth, routineForDate, saveRoutine, weekdays } from './routines'
+import { findRoutineMenu, isMenuHidden, nextMonth, routineForDate, saveRoutine, weekdays } from './routines'
 import { ScreenTitle } from './ScreenTitle'
 import { InputError, saveMenu } from './training'
 
@@ -96,7 +96,7 @@ export default function PlanManagement({ data, commit, back, read }: {
       {current ? <>
         <p className="hint">適用開始 {current.startsOn}</p>
         <ul className="entries">{current.items.map(item => <li key={item.id}>
-          <strong>{item.group && item.group + ' · '}{item.name}</strong> · {scheduleLabel(item)}{item.target && ' · ' + item.target.amount + item.target.unit}
+          <strong>{item.group && item.group + ' · '}{item.name}</strong> · {scheduleLabel(item)}{isMenuHidden(menus, item.menuId) && ' · 非表示'}{item.target && ' · ' + item.target.amount + item.target.unit}
           {item.condition && <p className="hint">{item.condition}</p>}{item.note && <p className="entry-note">{item.note}</p>}
         </li>)}</ul>
       </> : <p className="hint">今日適用される計画はまだありません。</p>}
@@ -140,6 +140,7 @@ export default function PlanManagement({ data, commit, back, read }: {
             <summary>
               <strong>{item.name || '新しい種目'}</strong>
               <span className="excel-preview-meta">{[item.group, scheduleLabel(item), item.condition,
+                findRoutineMenu(menus, item)?.enabled === false && '非表示',
                 item.target && item.target.amount + item.target.unit].filter(Boolean).join(' · ')}</span>
             </summary>
             <div className="routine-item">{fields}</div>
@@ -161,7 +162,7 @@ export default function PlanManagement({ data, commit, back, read }: {
       <h2>計画の履歴・適用予定</h2>
       <ul className="entries">{[...versions].reverse().map(version => <li key={version.id}>
         <details><summary>{version.startsOn} · {version.items.length}種目{version === current ? ' · 適用中' : version.startsOn > today ? ' · 適用予定' : ''}</summary>
-          <ul className="compact-list">{version.items.map(item => <li key={item.id}>{item.name} · {scheduleLabel(item)}{item.target && ' · ' + item.target.amount + item.target.unit}{item.condition && ' · ' + item.condition}{item.note && ' · ' + item.note}</li>)}</ul>
+          <ul className="compact-list">{version.items.map(item => <li key={item.id}>{item.name} · {scheduleLabel(item)}{isMenuHidden(menus, item.menuId) && ' · 非表示'}{item.target && ' · ' + item.target.amount + item.target.unit}{item.condition && ' · ' + item.condition}{item.note && ' · ' + item.note}</li>)}</ul>
           <button type="button" className="action edit-menu" disabled={busy} onClick={() => start(version.startsOn > today ? version.startsOn : today, version.items)}>この計画をコピーして編集</button>
         </details>
       </li>)}</ul>

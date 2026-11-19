@@ -12,6 +12,22 @@ export function setMenuEnabled(data: TrainingData, id: string, enabled: boolean)
   return { ...data, menus: data.menus.map(item => item.id === id ? { ...item, enabled } : item) }
 }
 
+export function deleteMenu(data: TrainingData, expected: Menu, today = localDate(new Date())): TrainingData {
+  const menu = data.menus.find(item => item.id === expected.id)
+  if (!menu || menu.name !== expected.name || menu.unit !== expected.unit ||
+      menu.category !== expected.category || menu.enabled !== expected.enabled) {
+    throw new InputError('メニューが変更されました。削除する種目を選び直してください。')
+  }
+  return {
+    ...data,
+    menus: data.menus.filter(item => item.id !== menu.id),
+    deletedMenus: [...(data.deletedMenus ?? []), { ...menu, deletedOn: today }],
+    plans: data.plans.map(plan => plan.date >= today && plan.kind !== '休養日' && plan.menuIds.includes(menu.id)
+      ? { ...plan, menuIds: plan.menuIds.filter(id => id !== menu.id) }
+      : plan),
+  }
+}
+
 export function weekDates(date: Date) {
   const day = date.getDate() - (date.getDay() + 6) % 7
   const year = date.getFullYear()
@@ -115,7 +131,9 @@ export function saveMenu(data: TrainingData, menu: Menu, target: string, now = n
   const name = menu.name.trim()
   if (!name) throw new InputError('メニュー名を入力してください。')
   const amount = positiveNumber(target, '目標値', true, menu.unit !== '分') ?? null
-  if (create && data.menus.some(item => item.id === menu.id)) throw new InputError('このメニューはすでに登録されています。')
+  if (create && (data.menus.some(item => item.id === menu.id) || data.deletedMenus?.some(item => item.id === menu.id))) {
+    throw new InputError('このメニューIDはすでに使用されています。')
+  }
   if (!create && !data.menus.some(item => item.id === menu.id)) throw new InputError('メニューが見つかりません。')
   const saved = { ...menu, name }
   const existing = currentGoal(data.goals, 'menu', localDate(now), menu.id)

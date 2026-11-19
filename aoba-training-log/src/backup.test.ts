@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { expect, test, vi } from 'vitest'
 import { savePlan, saveReflection, saveSkippedMenu, setRest } from './activities'
-import { decodeBackup, encodeBackup, restoreChange } from './backup'
+import { compareBackupCounts, decodeBackup, encodeBackup, restoreChange } from './backup'
 import { initialData } from './initialData'
 import { managementProgress } from './progress'
 import { createStorage } from './storage'
@@ -62,6 +62,26 @@ test('必須項目・不正な暦日・単位に合わない数量・参照先�
     expect(() => attempt({ ...good.data, records: [{ ...records[0], ...changes }] })).toThrow('練習記録')
   }
   expect(() => attempt({ ...good.data, records: [...records, records[0]] })).toThrow('重複')
+})
+
+test.each([[0, 0], [1, 0], [0, 1], [1, 2]])('削除済みメニューを項目キーで比較する（現在 %i 件・復元後 %i 件）', (current, restored) => {
+  const initial = initialData()
+  const deletions = (count: number) => initial.menus.slice(0, count).map(menu => ({ ...menu, deletedOn: '2026-11-19' as const }))
+  const rows = compareBackupCounts(
+    { ...initial, deletedMenus: deletions(current), routineAdditions: [{ date: '2026-11-19', itemId: 'before' }] },
+    { ...initial, deletedMenus: deletions(restored), routineCompletions: [{ date: '2026-11-19', itemId: 'after' }] },
+  )
+  expect(rows.map(row => row.label)).toEqual([
+    '練習記録', '練習予定', '目標・変更履歴', '振り返り', '見送り', '休養日の記録', '練習メニュー', '曜日別計画',
+    ...(current || restored ? ['削除済みメニュー（履歴用）'] : []), '条件付き計画の追加', '計画の完了チェック',
+  ])
+  expect(rows.slice(-2)).toMatchObject([
+    { key: 'routineAdditions', current: 1, restored: 0 },
+    { key: 'routineCompletions', current: 0, restored: 1 },
+  ])
+  expect(rows.find(row => row.key === 'deletedMenus')).toEqual(current || restored
+    ? { key: 'deletedMenus', label: '削除済みメニュー（履歴用）', current, restored }
+    : undefined)
 })
 
 test('確認画面の準備とキャンセルに相当する処理では書き換えない', async () => {

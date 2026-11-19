@@ -48,9 +48,15 @@ export function validateData(data: unknown): asserts data is TrainingData {
   if (!object(data) || data.schemaVersion !== dataVersion) {
     throw new BackupError('データ本体のバージョンが一致しません。')
   }
-  const menus = validateRows(data.menus, '練習メニュー', row => nonempty(row.id) && nonempty(row.name) &&
-    oneOf(row.category, categories) && oneOf(row.unit, units) && typeof row.enabled === 'boolean', row => row.id)
+  const validMenu = (row: Row) => nonempty(row.id) && nonempty(row.name) &&
+    oneOf(row.category, categories) && oneOf(row.unit, units) && typeof row.enabled === 'boolean'
+  const menus = validateRows(data.menus, '練習メニュー', validMenu, row => row.id)
   const ids = new Set(menus.map(menu => menu.id))
+  if (data.deletedMenus !== undefined) {
+    const deleted = validateRows(data.deletedMenus, '削除済みメニュー',
+      row => validMenu(row) && date(row.deletedOn) && !ids.has(row.id), row => row.id)
+    for (const menu of deleted) ids.add(menu.id)
+  }
   const hasMenu = (row: Row) => ids.has(row.menuId) && nonempty(row.menuName) && oneOf(row.unit, units)
   validateRows(data.records, '練習記録', row => nonempty(row.id) && date(row.date) && hasMenu(row) &&
     oneOf(row.kind, trainingKinds) && oneOf(row.category, categories) && quantity(row.amount, row.unit) &&
@@ -137,13 +143,17 @@ export function decodeBackup(text: string): Backup {
   return { appId, backupVersion, dataVersion, createdAt: value.createdAt, data: value.data }
 }
 
-export function backupCounts(data: TrainingData): [string, number][] {
-  return [
-    ['練習記録', data.records.length], ['練習予定', data.plans.length], ['目標・変更履歴', data.goals.length],
-    ['振り返り', data.reflections.length], ['見送り', data.skippedMenus.length], ['休養日の記録', data.rests.length],
-    ['練習メニュー', data.menus.length], ['曜日別計画', data.routineVersions?.length ?? 0],
-    ['条件付き計画の追加', data.routineAdditions?.length ?? 0], ['計画の完了チェック', data.routineCompletions?.length ?? 0],
-  ]
+const backupCountItems = [
+  ['records', '練習記録'], ['plans', '練習予定'], ['goals', '目標・変更履歴'],
+  ['reflections', '振り返り'], ['skippedMenus', '見送り'], ['rests', '休養日の記録'],
+  ['menus', '練習メニュー'], ['routineVersions', '曜日別計画'], ['deletedMenus', '削除済みメニュー（履歴用）'],
+  ['routineAdditions', '条件付き計画の追加'], ['routineCompletions', '計画の完了チェック'],
+] as const
+
+export function compareBackupCounts(current: TrainingData, backup: TrainingData) {
+  return backupCountItems.map(([key, label]) => ({
+    key, label, current: current[key]?.length ?? 0, restored: backup[key]?.length ?? 0,
+  })).filter(row => row.key !== 'deletedMenus' || row.current > 0 || row.restored > 0)
 }
 
 export function restoreChange(backup: Backup, expected: TrainingData) {

@@ -61,7 +61,7 @@ export function saveSkippedMenu(
   if (!previous && !confirmed && data.records.some(item => item.date === date && item.menuId === menuId)) {
     throw new SkipConfirmationRequired('このメニューには練習記録があります。')
   }
-  const menuName = previous?.menuName ?? data.menus.find(item => item.id === menuId)?.name
+  const menuName = previous?.menuName ?? [...data.menus, ...(data.deletedMenus ?? [])].find(item => item.id === menuId)?.name
   if (!menuName) throw new InputError('メニューが見つかりません。')
   const updatedAt = now.toISOString()
   const next = { date, menuId, menuName, reason, note: note.trim(),

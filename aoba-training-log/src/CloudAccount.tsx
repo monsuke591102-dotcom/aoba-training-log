@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { ChevronLeft, Cloud } from 'lucide-react'
 import { supabase } from './cloud'
-import { backupCounts, encodeBackup } from './backup'
+import { compareBackupCounts, encodeBackup } from './backup'
 import { downloadBackup } from './DataManagement'
 import { localDate } from './dates'
 import type { TrainingData } from './model'
@@ -112,8 +112,7 @@ export function CloudAccount({ back, session, sync }: { back: () => void; sessio
 
 function SyncPanel({ sync }: { sync: SyncView }) {
   const { decision } = sync
-  const localCounts = decision && backupCounts(decision.local)
-  const remoteCounts = decision?.remote && backupCounts(decision.remote.data)
+  const counts = decision && compareBackupCounts(decision.local, decision.remote?.data ?? decision.local)
   const [downloadError, setDownloadError] = useState(false)
   const blocked = sync.choosing || sync.status === '同期中' || sync.status === 'オフライン'
 
@@ -137,8 +136,8 @@ function SyncPanel({ sync }: { sync: SyncView }) {
         : '同期に使用しない側の内容は、この端末で退避し、JSONとして保存できます。'}</p>
       <table className="restore-counts">
         <thead><tr><th scope="col">データ</th><th scope="col">端末</th><th scope="col">クラウド</th></tr></thead>
-        <tbody>{localCounts?.map(([name, number], index) => <tr key={name}>
-          <th scope="row">{name}</th><td>{number}件</td><td>{remoteCounts ? remoteCounts[index][1] + '件' : '—'}</td>
+        <tbody>{counts?.map(({ key, label, current, restored }) => <tr key={key}>
+          <th scope="row">{label}</th><td>{current}件</td><td>{decision.remote ? restored + '件' : '—'}</td>
         </tr>)}</tbody>
       </table>
       <div className="form-actions">

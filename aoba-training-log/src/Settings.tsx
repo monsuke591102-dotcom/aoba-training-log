@@ -4,9 +4,10 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { localDate } from './dates'
 import { categories, units } from './initialData'
+import { canDeleteMenusLocally } from './menuDeletionAccess'
 import type { Goal, Menu, TrainingData } from './model'
 import { errorMessage, rejectInvalidNumber, type Commit } from './Records'
-import { currentGoal, menuStats, saveGoals, saveMenu, setMenuEnabled, weekDates } from './training'
+import { currentGoal, deleteMenu, menuStats, saveGoals, saveMenu, setMenuEnabled, weekDates } from './training'
 
 function MenuEditor({ menu, data, commit, close, create = false }: { menu: Menu; data: TrainingData; commit: Commit; close: () => void; create?: boolean }) {
   const [draft, setDraft] = useState(menu)
@@ -73,9 +74,13 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
   const [menuId, selectMenu] = useState<string | null>(null)
   const [newMenu, setNewMenu] = useState<Menu>()
   const [changingMenu, setChangingMenu] = useState<string>()
+  const [deletingMenu, setDeletingMenu] = useState<Menu>()
   const [visibilityError, setVisibilityError] = useState('')
   const [feedback, setFeedback] = useState<{ error: boolean; text: string }>()
   const [busy, setBusy] = useState(false)
+  const allowDeletion = canDeleteMenusLocally()
+  const affectedPlans = deletingMenu ? data.plans.filter(plan =>
+    plan.date >= date && plan.kind !== '休養日' && plan.menuIds.includes(deletingMenu.id)).length : 0
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -97,6 +102,20 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
     setVisibilityError('')
     try {
       await commit(latest => setMenuEnabled(latest, menu.id, !menu.enabled))
+    } catch (error) {
+      setVisibilityError(errorMessage(error))
+    } finally {
+      setChangingMenu(undefined)
+    }
+  }
+
+  async function confirmDeletion() {
+    if (!deletingMenu || changingMenu || !canDeleteMenusLocally()) return
+    setChangingMenu(deletingMenu.id)
+    setVisibilityError('')
+    try {
+      await commit(latest => deleteMenu(latest, deletingMenu))
+      setDeletingMenu(undefined)
     } catch (error) {
       setVisibilityError(errorMessage(error))
     } finally {
@@ -145,13 +164,25 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
                     <p className="entry-title">{menu.name} <span>{menu.enabled ? '表示中' : '非表示'}</span></p>
                     <p className="hint">今週 {stats.amount}{menu.unit} · 目標 {stats.target === null ? '未設定' : stats.target + menu.unit + '（' + stats.rate + '%）'}</p>
                     <p className="hint">日次目標 {daily?.amount != null && daily.unit === menu.unit ? daily.amount + menu.unit : '未設定'}</p>
-                    {menuId === menu.id
+                    {deletingMenu?.id === menu.id ? <div className="confirmation" role="group" aria-label="メニューの完全削除を確認">
+                      <p><strong>{deletingMenu.name}</strong>を登録メニューから完全削除します。</p>
+                      <p>当日以降の予定{affectedPlans}件からこの種目だけを外し、曜日別計画でも当日以降は適用しません。</p>
+                      <p>過去の実施記録と計画履歴は残ります。設定からの再表示はできなくなります。</p>
+                      <div className="form-actions">
+                        <button type="button" className="action danger" disabled={changingMenu !== undefined}
+                          onClick={() => void confirmDeletion()}>完全削除する</button>
+                        <button type="button" className="action" disabled={changingMenu !== undefined}
+                          onClick={() => setDeletingMenu(undefined)}>キャンセル</button>
+                      </div>
+                    </div> : menuId === menu.id
                       ? <MenuEditor menu={menu} data={data} commit={commit} close={() => selectMenu(null)} />
                       : <div className="form-actions">
                         <button className="action" disabled={changingMenu === menu.id} aria-label={menu.name + 'を編集'} onClick={() => { setNewMenu(undefined); selectMenu(menu.id) }}>編集</button>
                         <button className="action" disabled={changingMenu !== undefined}
                           aria-label={menu.name + 'を' + (menu.enabled ? '非表示' : '再表示')}
                           onClick={() => void changeVisibility(menu)}>{menu.enabled ? '非表示' : '再表示'}</button>
+                        {allowDeletion && <button type="button" className="action" disabled={changingMenu !== undefined || !!deletingMenu}
+                          aria-label={menu.name + 'を完全削除'} onClick={() => { setVisibilityError(''); setDeletingMenu(menu) }}>完全削除</button>}
                       </div>}
                   </li>
                 )

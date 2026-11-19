@@ -14,6 +14,10 @@ export interface Menu {
   enabled: boolean
 }
 
+export interface DeletedMenu extends Menu {
+  deletedOn: LocalDate
+}
+
 export interface TrainingRecord {
   id: string
   date: LocalDate
@@ -92,6 +96,7 @@ export interface RoutineVersion {
 export interface TrainingData {
   schemaVersion: 3
   menus: Menu[]
+  deletedMenus?: DeletedMenu[]
   records: TrainingRecord[]
   plans: Plan[]
   skippedMenus: SkippedMenu[]

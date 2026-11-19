@@ -8,7 +8,7 @@ import { fromLocalDate, localDate, monthGrid } from './dates'
 import type { DayKind, LocalDate, Plan, TrainingData, TrainingKind } from './model'
 import { errorMessage, type Commit } from './Records'
 import { trainingKinds } from './training'
-import { isMenuHidden } from './routines'
+import { isMenuDeleted, isMenuHidden } from './routines'
 
 const activityIcons = { 自主練: Dumbbell, チーム練習: Users, 試合: Flag, 休養日: Moon }
 const activityClasses = { 自主練: 'solo', チーム練習: 'team', 試合: 'game', 休養日: 'rest' }
@@ -29,6 +29,10 @@ function PlanEditor({ data, date, existing, commit, close }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const isPast = date < localDate(new Date())
+  const candidates = [
+    ...data.menus.filter(menu => menu.enabled || (isPast && menuIds.includes(menu.id))),
+    ...(isPast ? (data.deletedMenus ?? []).filter(menu => menuIds.includes(menu.id)) : []),
+  ]
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -52,7 +56,7 @@ function PlanEditor({ data, date, existing, commit, close }: {
         </select></label>
         {kind !== '休養日' && <fieldset className="plan-menus">
           <legend>予定メニュー（任意）</legend>
-          {data.menus.filter(menu => menu.enabled || (isPast && menuIds.includes(menu.id))).map(menu =>
+          {candidates.map(menu =>
             <label className="checkbox" key={menu.id}>
               <input type="checkbox" checked={menuIds.includes(menu.id)} onChange={event =>
                 setMenuIds(event.target.checked ? [...menuIds, menu.id] : menuIds.filter(id => id !== menu.id))} />
@@ -87,8 +91,9 @@ export function Calendar({ data, commit, onRecord, onReflection, initialDate }: 
   const records = data.records.filter(item => item.date === selected)
   const rest = data.rests.some(item => item.date === selected)
   const skips = data.skippedMenus.filter(item => item.date === selected)
-  const plannedIds = plan && plan.kind !== '休養日' ? plan.menuIds.filter(id => selected < today || !isMenuHidden(data.menus, id)) : []
-  const visibleSkips = skips.filter(item => selected < today || !isMenuHidden(data.menus, item.menuId))
+  const visibleMenu = (id: string) => !isMenuDeleted(data, selected, id) && (selected < today || !isMenuHidden(data.menus, id))
+  const plannedIds = plan && plan.kind !== '休養日' ? plan.menuIds.filter(visibleMenu) : []
+  const visibleSkips = skips.filter(item => visibleMenu(item.menuId))
   const skippedDates = new Set(data.skippedMenus.map(item => item.date))
   const activity = new Map<LocalDate, Set<DayKind>>()
   for (const item of [...data.records, ...data.plans, ...data.rests.map(item => ({ ...item, kind: '休養日' as const }))]) {
@@ -158,7 +163,7 @@ export function Calendar({ data, commit, onRecord, onReflection, initialDate }: 
           <ul>
             {[...new Set([...plannedIds, ...visibleSkips.map(skip => skip.menuId)])].map(menuId => {
               const skip = skips.find(item => item.menuId === menuId)
-              const name = skip?.menuName ?? data.menus.find(menu => menu.id === menuId)?.name
+              const name = skip?.menuName ?? [...data.menus, ...(data.deletedMenus ?? [])].find(menu => menu.id === menuId)?.name
               return name && <PlanMenuStatus key={selected + ':' + menuId} date={selected} menuId={menuId}
                 name={name} skipped={skip} commit={commit} />
             })}

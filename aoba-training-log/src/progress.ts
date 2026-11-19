@@ -11,7 +11,7 @@ export function dailyStats(data: TrainingData, date: LocalDate, today = localDat
   const skipped = new Set(data.skippedMenus.filter(item => item.date === date).map(item => item.menuId))
   const records = data.records.filter(record => record.date === date)
   const recorded = new Set(records.map(record => record.menuId))
-  const entries = data.menus.flatMap(menu => {
+  const entries = [...data.menus, ...(data.deletedMenus ?? [])].flatMap(menu => {
     if (skipped.has(menu.id) || (!planned.has(menu.id) && !recorded.has(menu.id))) return []
     const rule = routineItemForMenu(data, date, menu.id)
     const goal = rule ? rule.target : currentGoal(data.goals, 'daily-menu', date, menu.id)

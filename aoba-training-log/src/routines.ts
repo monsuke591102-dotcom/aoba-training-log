@@ -16,6 +16,10 @@ export function isMenuHidden(menus: Menu[], menuId?: string) {
   return menus.some(menu => menu.id === menuId && !menu.enabled)
 }
 
+export function isMenuDeleted(data: TrainingData, date: LocalDate, menuId?: string) {
+  return data.deletedMenus?.some(menu => menu.id === menuId && date >= menu.deletedOn) ?? false
+}
+
 export function findRoutineMenu(menus: Menu[], item: RoutineItem) {
   const linked = menus.find(menu => menu.id === item.menuId)
   if (item.mode !== 'quantity') return linked
@@ -29,7 +33,7 @@ export function findRoutineMenu(menus: Menu[], item: RoutineItem) {
 
 export function dailyRoutine(data: TrainingData, date: LocalDate, today = localDate(new Date())) {
   const items = (routineForDate(data, date)?.items ?? [])
-    .filter(item => date < today || !isMenuHidden(data.menus, item.menuId))
+    .filter(item => !isMenuDeleted(data, date, item.menuId) && (date < today || !isMenuHidden(data.menus, item.menuId)))
   const day = fromLocalDate(date).getDay()
   const additions = new Set(data.routineAdditions?.filter(item => item.date === date).map(item => item.itemId))
   const selected = items.filter(item => additions.has(item.id) || item.schedule === 'daily' ||
@@ -55,6 +59,9 @@ export function saveRoutine(data: TrainingData, version: RoutineVersion, now = n
   const menuIds = new Set<string>()
   let candidate = data
   const items = version.items.map(draft => {
+    if (data.deletedMenus?.some(menu => menu.id === draft.menuId)) {
+      throw new InputError(draft.name + 'は削除済みです。計画から除外してください。')
+    }
     let item = { ...draft, group: draft.group?.trim() || undefined }
     if (item.mode === 'quantity') {
       const base = candidate.menus.find(menu => menu.id === item.menuId)
@@ -90,7 +97,8 @@ export function saveRoutine(data: TrainingData, version: RoutineVersion, now = n
 
 export function setRoutineAddition(data: TrainingData, date: LocalDate, itemId: string, add: boolean): TrainingData {
   const rule = routineForDate(data, date)?.items.find(item => item.id === itemId && item.schedule === 'conditional')
-  if (!isLocalDate(date) || !rule || (add && date >= localDate(new Date()) && isMenuHidden(data.menus, rule.menuId))) {
+  if (!isLocalDate(date) || !rule ||
+      (add && (isMenuDeleted(data, date, rule.menuId) || (date >= localDate(new Date()) && isMenuHidden(data.menus, rule.menuId))))) {
     throw new InputError('その日に追加できる条件付きメニューがありません。')
   }
   const old = data.routineAdditions ?? []
@@ -103,7 +111,7 @@ export function plannedMenuIds(data: TrainingData, date: LocalDate, today = loca
   const plan = data.plans.find(item => item.date === date)
   const explicit = plan && plan.kind !== '休養日' ? plan.menuIds : []
   return new Set([
-    ...explicit.filter(id => date < today || !isMenuHidden(data.menus, id)),
+    ...explicit.filter(id => !isMenuDeleted(data, date, id) && (date < today || !isMenuHidden(data.menus, id))),
     ...dailyRoutine(data, date, today).selected.flatMap(item => item.menuId ? [item.menuId] : []),
   ])
 }

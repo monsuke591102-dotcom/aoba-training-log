@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { ChevronLeft, Database } from 'lucide-react'
-import { backupCounts, BackupError, decodeBackup, encodeBackup, restoreChange, type Backup } from './backup'
+import { BackupError, compareBackupCounts, decodeBackup, encodeBackup, restoreChange, type Backup } from './backup'
 import { localDate } from './dates'
 import type { TrainingData } from './model'
 import { ScreenTitle } from './ScreenTitle'
@@ -137,8 +137,8 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
       <p className="restore-warning"><strong>現在のデータが置き換えられます。</strong> バックアップに含まれない現在のデータは、復元後に表示されなくなります。</p>
       <table className="restore-counts">
         <thead><tr><th scope="col">データ</th><th scope="col">現在</th><th scope="col">復元後</th></tr></thead>
-        <tbody>{backupCounts(preview.backup.data).map(([label, count], index) =>
-          <tr key={label}><th scope="row">{label}</th><td>{backupCounts(preview.current)[index][1]}件</td><td>{count}件</td></tr>,
+        <tbody>{compareBackupCounts(preview.current, preview.backup.data).map(({ key, label, current, restored }) =>
+          <tr key={key}><th scope="row">{label}</th><td>{current}件</td><td>{restored}件</td></tr>,
         )}</tbody>
       </table>
       {error && <p className="error" role="alert">{error}</p>}

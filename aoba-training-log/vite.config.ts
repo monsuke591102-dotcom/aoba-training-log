@@ -11,7 +11,10 @@ export default defineConfig(({ mode }) => {
     base: env.VITE_BASE_PATH || '/',
     build: { target: ['chrome107', 'edge107', 'firefox104', 'safari16'], cssTarget: 'safari16' },
     envPrefix: [],
-    define: { __TRAINING_CLOUD_CONFIG__: JSON.stringify(cloud) },
+    define: {
+      __TRAINING_CLOUD_CONFIG__: JSON.stringify(cloud),
+      __LOCAL_MENU_DELETE__: JSON.stringify(!cloud && env.VITE_ENABLE_LOCAL_MENU_DELETE === 'true'),
+    },
   }
 })
 

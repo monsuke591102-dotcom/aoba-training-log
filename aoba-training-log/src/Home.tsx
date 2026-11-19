@@ -131,7 +131,7 @@ export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge
   }
   const recorded = new Map<string, MenuRow>()
   for (const record of records) {
-    if (menus.get(record.menuId)?.enabled === false) continue
+    if (!menus.get(record.menuId)?.enabled) continue
     const key = rowKey(record.menuId, record.unit)
     const previous = recorded.get(key)
     recorded.set(key, {

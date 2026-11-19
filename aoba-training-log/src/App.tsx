@@ -2,12 +2,14 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { CalendarDays, ChartNoAxesColumnIncreasing, ClipboardList, House, Settings2, Trophy, X } from 'lucide-react'
 import { BadgeDetail, type Badge } from './Badges'
 import { Baseball } from './BaseballArt'
+import { BackupError } from './backup'
 import { dailyStats, managementProgress } from './progress'
 import { CloudAccount } from './CloudAccount'
 import { DataManagement } from './DataManagement'
 import { Calendar } from './Calendar'
 import { localDate } from './dates'
 import { Home } from './Home'
+import { canDeleteMenusLocally } from './menuDeletionAccess'
 import type { LocalDate, TrainingData, TrainingKind } from './model'
 import { Records, type Commit } from './Records'
 import { Reflections } from './Reflections'
@@ -99,7 +101,14 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
   }
 
   async function restore(change: Change) {
-    await storage.update(change)
+    await storage.update(current => {
+      const restored = change(current)
+      const existing = new Set(current.deletedMenus?.map(item => item.id))
+      if (!canDeleteMenusLocally() && restored.deletedMenus?.some(item => !existing.has(item.id))) {
+        throw new BackupError('このバックアップには、復元先にない削除済みメニューがあります。完全削除に対応した検証環境で確認してください。')
+      }
+      return restored
+    })
     pendingGauge.current = false
     setMilestone(undefined)
   }

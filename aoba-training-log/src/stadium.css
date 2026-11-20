@@ -243,9 +243,9 @@
   position: relative; display: block; width: 100%; max-width: 28rem;
   margin-inline: auto; aspect-ratio: 1;
   padding: 0; border: 0; background: #12283d;
-  overflow: hidden; cursor: crosshair; touch-action: manipulation;
+  cursor: crosshair; touch-action: manipulation;
 }
-.strike-guides { display: block; width: 100%; height: 100%; pointer-events: none; }
+.strike-guides { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 .strike-guides rect, .strike-guides path { stroke: #a1bdd4; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .strike-guides rect { fill: #214c66; }
 .strike-guides path { fill: none; stroke-dasharray: 3 3; }

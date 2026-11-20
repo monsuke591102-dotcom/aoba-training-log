@@ -43,6 +43,7 @@ const isBattedPitch = ({ result }: DiagramPitch) => result === 'inPlay' || resul
 
 function terminalBattedTone(pitch: DiagramPitch | undefined, result: PlateAppearance['result']): MarkerTone | undefined {
   if (!pitch) return
+  if (pitch.result === 'hit' && result === undefined) return 'hit'
   if (isHitPlateResult(result) && pitch.result !== 'inPlayNonHit') return 'hit'
   if (explicitBattedOuts.has(result) && pitch.result !== 'hit') return 'out'
 }
@@ -50,33 +51,49 @@ function terminalBattedTone(pitch: DiagramPitch | undefined, result: PlateAppear
 function markerTone(pitch: DiagramPitch, battedTone?: MarkerTone): MarkerTone {
   if (battedTone) return battedTone
   if (pitch.result === 'ball') return 'ball'
-  if (pitch.result === 'calledStrike' || pitch.result === 'swingingStrike') return 'strike'
+  if (pitch.result === 'calledStrike' || pitch.result === 'swingingStrike' ||
+    pitch.result === 'foul' || pitch.result === 'foulBunt') return 'strike'
   return 'neutral'
 }
 
-// Keep the recorded anchor exact. Each label occupies the nearest available cell.
+// Keep the badge on the recorded point when it fits. The fixed slots are
+// alternatives for collisions; leaders identify the actual saved positions.
 const markerColumns = 6
 const markerRows = 9
+const badgeInset = .042 // Half the badge width, with room for subpixel rounding.
+const badgeSpacing = .09
 
 function pitchMarkers(pitches: DiagramPitch[]) {
   const slots = Array.from({ length: markerColumns * markerRows }, (_, index) => ({
     x: (index % markerColumns + .5) / markerColumns,
     y: (Math.floor(index / markerColumns) + .5) / markerRows,
   }))
-  return [...pitches].sort((a, b) => a.order - b.order).map(pitch => {
+  const placed: FieldPoint[] = []
+  const fits = (point: FieldPoint) => placed.every(other =>
+    Math.abs(point.x - other.x) >= badgeSpacing || Math.abs(point.y - other.y) >= badgeSpacing)
+  const ordered = [...pitches].sort((a, b) => a.order - b.order)
+  const markers = ordered.map(pitch => {
     const anchor = pitchPoint(pitch.location)
-    let nearest = -1
+    const keepInside = (value: number) => Math.max(badgeInset, Math.min(1 - badgeInset, value))
+    const preferred = { x: keepInside(anchor.x), y: keepInside(anchor.y) }
+    const label = fits(preferred) ? preferred : undefined
+    if (label) placed.push(label)
+    return { pitch, anchor, label }
+  })
+
+  for (const marker of markers) {
+    if (marker.label) continue
     let distance = Infinity
-    for (const [index, slot] of slots.entries()) {
-      const next = (slot.x - anchor.x) ** 2 + (slot.y - anchor.y) ** 2
-      if (next < distance) {
-        nearest = index
+    for (const slot of slots) {
+      const next = (slot.x - marker.anchor.x) ** 2 + (slot.y - marker.anchor.y) ** 2
+      if (next < distance && fits(slot)) {
+        marker.label = slot
         distance = next
       }
     }
-    const label = nearest < 0 ? undefined : slots.splice(nearest, 1)[0]
-    return { pitch, anchor, label }
-  })
+    if (marker.label) placed.push(marker.label)
+  }
+  return markers
 }
 
 // These are the silhouettes of the same symbols shown on the pitch type buttons.
@@ -128,8 +145,8 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
       if (!selected) select({ x: .5, y: .5 })
       return
     }
-    const box = event.currentTarget.getBoundingClientRect()
-    if (box.width && box.height) {
+    const box = event.currentTarget.querySelector('.strike-guides')?.getBoundingClientRect()
+    if (box?.width && box.height) {
       select(normalizeFieldPoint(event.clientX - box.left, event.clientY - box.top, box.width, box.height))
     }
   }
@@ -156,7 +173,7 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
       </svg>
       <svg className="zone-anchors" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         {markers.map(({ pitch, anchor, label }) => <g key={pitch.id}>
-          {label && <line x1={anchor.x * 100} y1={anchor.y * 100} x2={label.x * 100} y2={label.y * 100} />}
+          {label && (anchor.x !== label.x || anchor.y !== label.y) && <line x1={anchor.x * 100} y1={anchor.y * 100} x2={label.x * 100} y2={label.y * 100} />}
           <circle data-pitch-order={pitch.order} cx={anchor.x * 100} cy={anchor.y * 100} r="1" />
         </g>)}
       </svg>
@@ -170,7 +187,7 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
     {overflow.length > 0 && <div className="zone-marker-overflow" aria-label="図に収まらない投球">
       {overflow.map(({ pitch }) => <PitchBadge key={pitch.id} pitch={pitch} tone={toneFor(pitch)} />)}
     </div>}
-    <p className="hint">黄：ストライク · 緑：ボール · 赤：打球アウト · 青：ヒット · 灰：その他・判定不可</p>
+    <p className="hint">黄：ストライク・ファウル · 緑：ボール · 赤：打球アウト · 青：ヒット · 灰：その他・判定不可</p>
     <p className="hint" id="strike-grid-help">枠の内外をタップできます。キーボードでは矢印で移動、Shift＋矢印で微調整できます。</p>
   </figure>
 }

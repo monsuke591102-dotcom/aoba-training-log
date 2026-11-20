@@ -29,6 +29,18 @@ test('捕手視点の3×3補助線と同一点の投球番号・球種を表示�
   expect(legacy).toEqual({ zone: 'outside', side: 'highLeft' })
 })
 
+test('単独マーカーは記録位置に重なり、端では引き出し線が元の位置を示す', () => {
+  const pitch = { id: 'point', order: 1, type: initialPitchTypes[0], result: 'foul' } as const
+  const html = renderToStaticMarkup(<StrikeZone onSelect={vi.fn()} pitches={[
+    { ...pitch, location: { zone: 'point', x: .27, y: .64 } },
+    { ...pitch, id: 'edge', order: 2, location: { zone: 'point', x: 1, y: 0 } },
+  ]} />)
+  expect(html).toContain('data-pitch-order="1" style="left:27%;top:64%"')
+  expect(html.match(/<line /g)).toHaveLength(1)
+  expect(html).toContain('<line x1="100" y1="0"')
+  expect(html).toContain('data-pitch-order="2" cx="100" cy="0"')
+})
+
 test('明示ストライクとボールを色分けし、打球アウトは対応する最終投球だけを赤にする', () => {
   const location = { zone: 'point', x: .5, y: .5 } as const
   const results = ['calledStrike', 'swingingStrike', 'ball', 'foul', 'foulBunt', 'hitByPitch', 'inPlayNonHit'] as const
@@ -36,7 +48,7 @@ test('明示ストライクとボールを色分けし、打球アウトは対�
   const tones = (rows: typeof pitches, result?: PlateAppearance['result']) =>
     Array.from(renderToStaticMarkup(<StrikeZone pitches={rows} plateResult={result} onSelect={vi.fn()} />)
       .matchAll(/data-tone="([^"]+)"/g), match => match[1])
-  expect(tones(pitches, 'groundOut')).toEqual(['strike', 'strike', 'ball', 'neutral', 'neutral', 'neutral', 'out'])
+  expect(tones(pitches, 'groundOut')).toEqual(['strike', 'strike', 'ball', 'strike', 'strike', 'neutral', 'out'])
   expect(tones(pitches, 'reachedOnError').at(-1)).toBe('neutral')
   expect(tones(pitches, 'fieldersChoice').at(-1)).toBe('neutral')
   expect(tones(pitches, 'sacrificeFly').at(-1)).toBe('neutral')
@@ -60,7 +72,8 @@ test('4種類の安打を最終投球にだけ関連付け、旧打球・矛盾�
   }
   expect(tones([ball], 'single')).toEqual(['ball'])
   expect(tones([pitch], 'groundOut')).toEqual(['neutral'])
-  expect(tones([pitch])).toEqual(['neutral'])
+  expect(tones([pitch])).toEqual(['hit'])
+  expect(tones([{ ...pitch, result: 'inPlay' }])).toEqual(['neutral'])
   expect(tones([{ ...pitch, result: 'inPlayNonHit' }], 'single')).toEqual(['neutral'])
   expect(tones([pitch, { ...ball, order: 3 }], 'single')).toEqual(['neutral', 'ball'])
   expect(tones([{ ...pitch, id: 'old', order: 1, result: 'inPlay' }, pitch], 'single')).toEqual(['neutral', 'neutral'])

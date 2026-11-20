@@ -47,7 +47,7 @@ test('全データのJSON書き出しと復元で計算結果・見送り・履�
 test.each([
   ['破損JSON', '{broken', 'JSONを読み取れません'],
   ['別アプリ', JSON.stringify({ appId: 'other' }), 'AOBA TRAINING LOG'],
-  ['未対応のバックアップ版', JSON.stringify({ appId: 'aoba-training-log', backupVersion: 2, dataVersion: 3 }), '対応していません'],
+  ['未対応のバックアップ版', JSON.stringify({ appId: 'aoba-training-log', backupVersion: 3, dataVersion: 3 }), '対応していません'],
   ['未対応のデータ版', JSON.stringify({ appId: 'aoba-training-log', backupVersion: 1, dataVersion: 999 }), '対応していません'],
 ])('%sを拒否する', (_label, content, message) => {
   expect(() => decodeBackup(content)).toThrow(message)

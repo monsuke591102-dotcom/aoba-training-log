@@ -1,3 +1,5 @@
+import type { MatchDetails } from './matchDetails'
+
 /** YYYY-MM-DD in the device's local calendar. */
 export type LocalDate = `${number}-${number}-${number}`
 export type Timestamp = string
@@ -45,6 +47,7 @@ export interface MatchEntry {
   improve: string
   createdAt: Timestamp
   updatedAt: Timestamp
+  details?: MatchDetails
 }
 
 export type Plan =

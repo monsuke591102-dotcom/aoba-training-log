@@ -1,4 +1,5 @@
 import { isLocalDate, localDate } from './dates'
+import { emptyMatchDetails, isMatchDetails, type MatchDetails } from './matchDetails'
 import type { MatchEntry, TrainingData } from './model'
 import { deleteRecord, InputError, saveRecord, type RecordDraft } from './training'
 
@@ -47,12 +48,43 @@ export function saveMatch(data: TrainingData, draft: MatchDraft, target?: MatchT
     recordId = next.records.at(-1)!.id
   }
   const remaining = matches.filter(row => row !== previous)
-  if (recordId && !good && !improve) return previous ? withMatches(next, remaining) : next
+  if (recordId && !good && !improve && !previous?.details) return previous ? withMatches(next, remaining) : next
   const entry: MatchEntry = {
-    id: previous?.id ?? crypto.randomUUID(), recordId, date: draft.date, good, improve,
+    ...previous, id: previous?.id ?? crypto.randomUUID(), recordId, date: draft.date, good, improve,
     createdAt: previous?.createdAt ?? timestamp, updatedAt: timestamp,
   }
   return { ...next, matches: [...remaining, entry] }
+}
+
+// Called inside the local storage transaction. Only the targeted match is replaced.
+export function updateMatchDetails(data: TrainingData, target: MatchTarget,
+  edit: (details: MatchDetails) => MatchDetails, now = new Date()): TrainingData {
+  requireMatchAccess()
+  const matches = data.matches ?? []
+  const recordId = 'recordId' in target ? target.recordId : undefined
+  const record = recordId === undefined ? undefined : data.records.find(row => row.id === recordId && row.kind === '試合')
+  const previous = 'matchId' in target ? matches.find(row => row.id === target.matchId)
+    : matches.find(row => row.recordId === target.recordId)
+  if (!previous && !record) throw new InputError('試合記録が見つかりません。')
+  const details = edit(previous?.details ? structuredClone(previous.details) : emptyMatchDetails())
+  if (!isMatchDetails(details)) throw new InputError('試合詳細に不正な項目または重複があります。')
+  const timestamp = now.toISOString()
+  const entry: MatchEntry = previous
+    ? { ...previous, details, updatedAt: timestamp }
+    : { id: crypto.randomUUID(), recordId, date: record!.date, good: '', improve: '', createdAt: timestamp, updatedAt: timestamp, details }
+  return { ...data, matches: previous ? matches.map(row => row === previous ? entry : row) : [...matches, entry] }
+}
+
+type DetailRows = Pick<MatchDetails, 'plateAppearances' | 'baserunning' | 'positionChanges' | 'fielding'>
+
+export function saveMatchDetailRow<K extends keyof DetailRows>(data: TrainingData, target: MatchTarget,
+  collection: K, row: NoInfer<DetailRows[K][number]>, now = new Date()): TrainingData {
+  return updateMatchDetails(data, target, details => {
+    const rows: DetailRows[K][number][] = details[collection]
+    return { ...details, [collection]: rows.some(current => current.id === row.id)
+      ? rows.map(current => current.id === row.id ? row : current)
+      : [...rows, row] }
+  }, now)
 }
 
 export function deleteMatch(data: TrainingData, id: string, linked: boolean): TrainingData {

@@ -1,15 +1,17 @@
 import { fromLocalDate, isLocalDate } from './dates'
 import { categories, units } from './initialData'
+import { hasMatchDetails, isMatchDetails } from './matchDetails'
 import { skipReasons, type TrainingData } from './model'
 import { trainingKinds } from './training'
 
 const appId = 'aoba-training-log'
 const backupVersion = 1
+const detailedBackupVersion = 2
 const dataVersion: TrainingData['schemaVersion'] = 3
 
 export interface Backup {
   appId: typeof appId
-  backupVersion: typeof backupVersion
+  backupVersion: typeof backupVersion | typeof detailedBackupVersion
   createdAt: string
   dataVersion: typeof dataVersion
   data: TrainingData
@@ -67,6 +69,7 @@ export function validateData(data: unknown): asserts data is TrainingData {
     const linked = new Set<unknown>()
     validateRows(data.matches, '試合・試合の振り返り', row => {
       if (!nonempty(row.id) || !date(row.date) || !string(row.good) || !string(row.improve) || !timestamps(row)) return false
+      if (row.details !== undefined && !isMatchDetails(row.details)) return false
       // A linked reflection can outlive its record when an older client deletes it.
       if (row.recordId === undefined) return true
       if (!nonempty(row.recordId) || linked.has(row.recordId)) return false
@@ -134,7 +137,8 @@ export function validateData(data: unknown): asserts data is TrainingData {
 
 export function encodeBackup(data: TrainingData, now = new Date()): string {
   validateData(data)
-  const backup: Backup = { appId, backupVersion, createdAt: now.toISOString(), dataVersion, data }
+  const backup: Backup = { appId, backupVersion: hasMatchDetails(data) ? detailedBackupVersion : backupVersion,
+    createdAt: now.toISOString(), dataVersion, data }
   return JSON.stringify(backup, null, 2)
 }
 
@@ -146,12 +150,15 @@ export function decodeBackup(text: string): Backup {
     throw new BackupError('JSONを読み取れません。ファイルが壊れていないか確認してください。')
   }
   if (!object(value) || value.appId !== appId) throw new BackupError('AOBA TRAINING LOGのバックアップを選んでください。')
-  if (value.backupVersion !== backupVersion || value.dataVersion !== dataVersion) {
+  if ((value.backupVersion !== backupVersion && value.backupVersion !== detailedBackupVersion) || value.dataVersion !== dataVersion) {
     throw new BackupError('このバックアップのバージョンには対応していません。')
   }
   if (!string(value.createdAt) || !timestamp(value.createdAt)) throw new BackupError('バックアップの作成日時が不正です。')
   validateData(value.data)
-  return { appId, backupVersion, dataVersion, createdAt: value.createdAt, data: value.data }
+  if (hasMatchDetails(value.data) !== (value.backupVersion === detailedBackupVersion)) {
+    throw new BackupError('試合詳細とバックアップ形式のバージョンが一致しません。')
+  }
+  return { appId, backupVersion: value.backupVersion, dataVersion, createdAt: value.createdAt, data: value.data }
 }
 
 const backupCountItems = [
@@ -172,7 +179,8 @@ export function replacesMatches(current: TrainingData, replacement?: TrainingDat
   return current.matches?.some(item => {
     const next = incoming.get(item.id)
     return !next || item.recordId !== next.recordId || item.date !== next.date ||
-      item.good !== next.good || item.improve !== next.improve
+      item.good !== next.good || item.improve !== next.improve ||
+      JSON.stringify(item.details) !== JSON.stringify(next.details)
   }) ?? false
 }
 
@@ -181,6 +189,9 @@ export function restoreChange(backup: Backup, expected: TrainingData) {
   return (current: TrainingData) => {
     if (JSON.stringify(current) !== snapshot) {
       throw new BackupError('確認中に現在のデータが変更されました。ファイルを選び直してください。')
+    }
+    if (hasMatchDetails(current) && backup.backupVersion === backupVersion) {
+      throw new BackupError('試合詳細のない旧形式で上書きできません。試合詳細を含むバックアップを選んでください。')
     }
     return backup.data
   }

@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { validateData } from './backup'
 import { config } from './cloud'
+import { requireCloudCompatibleMatchData } from './matchDetails'
 import type { RemoteSnapshot, SnapshotApi } from './sync'
 
 export class SnapshotWriteDenied extends Error {}
@@ -34,9 +35,11 @@ export function snapshotApi(session: Session, signal: AbortSignal): SnapshotApi 
       if (!rows.length) return null
       const { data, revision } = rows[0]
       validateData(data)
+      requireCloudCompatibleMatchData(data)
       return { data, revision: readRevision(revision) }
     },
     async write(flight) {
+      requireCloudCompatibleMatchData(flight.data)
       validateData(flight.data)
       const response = await request('rpc/training_log_write_snapshot_v2', {
         method: 'POST',

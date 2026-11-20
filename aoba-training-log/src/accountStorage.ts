@@ -1,5 +1,6 @@
 import { openDB, type DBSchema } from 'idb'
 import { initialData } from './initialData'
+import { requireCloudCompatibleMatchData } from './matchDetails'
 import type { TrainingData } from './model'
 import type { Change } from './storage'
 
@@ -42,7 +43,9 @@ export function createAccountStorage(key: string, name = 'aoba-training-log-sync
       const tx = db.transaction('accounts', 'readwrite')
       try {
         const current = await tx.store.get(key) ?? initial()
+        requireCloudCompatibleMatchData(current.data)
         const next = edit(current)
+        requireCloudCompatibleMatchData(next.data)
         if (next === current) {
           await tx.done
           return current

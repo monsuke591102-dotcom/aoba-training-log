@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import type { Session } from '@supabase/supabase-js'
 import { afterEach, expect, test, vi } from 'vitest'
 import { initialData } from './initialData'
+import { emptyMatchDetails } from './matchDetails'
 import { snapshotApi, SnapshotWriteDenied } from './snapshotApi'
 import { createAccountStorage } from './accountStorage'
 import { syncOnce } from './sync'
@@ -12,6 +13,16 @@ const session = { access_token: 'fixture-token', user: { id: 'fixture-user' } } 
 const signal = new AbortController().signal
 const flight = { id: 'fixture-flight', data: initialData(), generation: 1, revision: null }
 afterEach(() => vi.unstubAllGlobals())
+
+test.each([null, 2])('試合詳細は作成・更新のいずれも通信前に拒否する（%s）', async revision => {
+  const fetch = vi.fn()
+  vi.stubGlobal('fetch', fetch)
+  const timestamp = '2026-11-20T01:00:00.000Z'
+  const data = { ...initialData(), matches: [{ id: 'match-1', date: '2026-11-20' as const,
+    good: '', improve: '', createdAt: timestamp, updatedAt: timestamp, details: emptyMatchDetails() }] }
+  await expect(snapshotApi(session, signal).write({ ...flight, data, revision })).rejects.toThrow('端末内専用')
+  expect(fetch).not.toHaveBeenCalled()
+})
 
 test.each([null, 2])('作成・更新とも新版RPCに送信し、書き込まれたrevisionを返す（%s）', async revision => {
   const fetch = vi.fn().mockResolvedValue(Response.json([{ status: 'written', revision: (revision ?? 0) + 1 }]))

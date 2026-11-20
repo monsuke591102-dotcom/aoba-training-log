@@ -182,7 +182,22 @@
 [data-screen="カレンダー"] .day-section {
   border-color: #436692; background: #0e2446;
 }
-[data-screen="設定"] .menu-group > summary { background: #1e4169; }
+[data-screen="設定"] .menu-group > summary, .routine-menu-selector .menu-group > summary { background: #1e4169; }
+.routine-menu-selector { min-width: 0; }
+.routine-menu-selector > legend { font-weight: 650; }
+.routine-menu-selector > .action { margin-top: 6px; }
+.routine-menu-selector .menu-group { margin-top: 8px; }
+.routine-menu-options { display: grid; gap: 4px; padding-top: 6px; }
+.routine-menu-options .action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.routine-menu-options .action svg { flex: none; }
 [data-screen="成長"] .card { border-top-color: #76a6dd; }
 .entries li, .day-section { border-color: #43618a; }
 .fields input:not([type="checkbox"]), .fields select, textarea {

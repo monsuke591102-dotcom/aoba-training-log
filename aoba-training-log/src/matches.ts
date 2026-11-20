@@ -11,7 +11,7 @@ export function canEditMatches() {
 }
 
 export type MatchDraft = RecordDraft & { good: string; improve: string }
-type MatchTarget = { recordId: string } | { matchId: string }
+export type MatchTarget = { recordId: string } | { matchId: string }
 
 function withMatches(data: TrainingData, matches: MatchEntry[]): TrainingData {
   const { matches: _, ...rest } = data

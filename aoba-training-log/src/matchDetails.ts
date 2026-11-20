@@ -19,7 +19,7 @@ const bases = ['batter', 'first', 'second', 'third', 'home'] as const
 const advanceReasons = ['hit', 'walk', 'hitByPitch', 'steal', 'wildPitch', 'passedBall', 'error', 'fieldersChoice',
   'sacrifice', 'balk', 'tagUp', 'other'] as const
 const runningResults = ['advanced', 'stolenBase', 'caughtStealing', 'out', 'scored'] as const
-const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'] as const
+export const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'] as const
 const playTypes = ['grounder', 'liner', 'fly', 'bunt', 'throw', 'tag', 'force', 'cover', 'other'] as const
 const fieldingCredits = ['putout', 'assist', 'error'] as const
 const skills = ['catching', 'throwing', 'baseCover', 'judgment', 'other'] as const
@@ -46,6 +46,8 @@ export type PlateAppearance = DraftableRow & Reflection & {
   fieldPoint?: { x: number; y: number }
   pitchCount?: number
   beforeFinalPitch?: Count
+  outs?: number
+  errorPosition?: Position
   pitches?: Pitch[]
 }
 
@@ -136,6 +138,8 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
     (row.status === 'complete' ? oneOf(row.result, plateResults) : optional(row.result, v => oneOf(v, plateResults))) &&
     optional(row.bunt, v => oneOf(v, buntResults)) && optional(row.battedBall, v => oneOf(v, battedBallTypes)) &&
     optional(row.fieldPoint, v => object(v) && coordinate(v.x) && coordinate(v.y)) &&
+    optional(row.outs, v => count(v, 0, 2)) &&
+    optional(row.errorPosition, v => row.result === 'reachedOnError' && oneOf(v, positions)) &&
     optional(row.pitchCount, count) && optional(row.beforeFinalPitch, v => object(v) && count(v.balls, 0, 3) && count(v.strikes, 0, 2)) &&
     optional(row.pitches, v => rows(v, pitch => pitchType(pitch.type) && oneOf(pitch.result, pitchResults) && pitchLocation(pitch.location), ids)), ids)) return false
 

@@ -8,6 +8,7 @@ export { errorMessage, type Commit } from './recordFeedback'
 import { localDate } from './dates'
 import { deleteRecord, InputError, saveRecord, trainingKinds } from './training'
 import { canEditMatches, deleteMatch, saveMatch, type MatchDraft } from './matches'
+import { BattingEditor } from './BattingEditor'
 
 export function rejectInvalidNumber(form: HTMLFormElement) {
   if (Array.from(form.querySelectorAll<HTMLInputElement>('input[type="number"]')).some(input => input.validity.badInput)) {
@@ -95,6 +96,7 @@ function RecordForm({ data, record, match, date, kind, commit, onClose }: {
 export function Records({ data, commit, start }: { data: TrainingData; commit: Commit; start?: { id?: string; date?: LocalDate; kind?: TrainingKind } }) {
   const [editing, setEditing] = useState<string | null>(start ? start.id ? 'record:' + start.id : '' : null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [batting, setBatting] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const editMatches = canEditMatches()
@@ -106,6 +108,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       ({ id: 'match:' + match.id, record: undefined, match, date: match.date, createdAt: match.createdAt })),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
   const selection = history.find(item => item.id === editing)
+  const battingEntry = editMatches ? history.find(item => item.id === batting) : undefined
 
   async function confirmDelete() {
     const entry = history.find(item => item.id === deleting)
@@ -125,6 +128,12 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
     } finally {
       setBusy(false)
     }
+  }
+
+  if (battingEntry && (battingEntry.record?.kind === '試合' || (battingEntry.match && !battingEntry.match.recordId))) {
+    return <BattingEditor key={battingEntry.id} commit={commit} onClose={() => setBatting(null)}
+      target={battingEntry.record ? { recordId: battingEntry.record.id } : { matchId: battingEntry.match!.id }}
+      appearances={battingEntry.match?.details?.plateAppearances ?? []} />
   }
 
   return (
@@ -161,6 +170,8 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
                 : (record || (editMatches && !match?.recordId)) && <div className="form-actions">
                     <button className="action" onClick={() => { setEditing(id); window.scrollTo(0, 0) }}>編集</button>
                     <button className="action" onClick={() => { setError(''); setDeleting(id) }}>削除</button>
+                    {editMatches && editing === null && (record?.kind === '試合' || (match && !match.recordId)) &&
+                      <button className="action" onClick={() => { setBatting(id); window.scrollTo(0, 0) }}>打席を記録</button>}
                   </div>}
             </li>
           ))}

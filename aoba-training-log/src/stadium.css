@@ -210,6 +210,25 @@
 .batting-form, .batting-panel { display: grid; gap: 14px; min-width: 0; }
 .batting-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .batting-editor .action { min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.batting-editor-with-save { padding-bottom: calc(var(--batting-save-height, 60px) + 16px); }
+.batting-save-bar {
+  position: fixed; z-index: 5; inset: auto 0 var(--bottom-nav-height);
+  padding: 7px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  border-top: 1px solid #5578a3; background: #10243f;
+}
+.batting-save-actions {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+  max-width: 32rem; margin-inline: auto;
+}
+.batting-save-bar .error { max-width: 32rem; margin: 0 auto 6px; overflow-wrap: anywhere; }
+.batting-editor-with-save[data-batting-keyboard] .batting-save-bar { display: none; }
+.batting-result-fields { display: grid; gap: 12px; min-width: 0; }
+.batting-result-fields > label { display: grid; gap: 4px; min-width: 0; }
+.batting-result-fields select {
+  width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px;
+  border: 1px solid #7592b7; border-radius: 7px;
+  color: #f0f6ff; background: #0b1d37; font: inherit; font-size: max(16px, 1em);
+}
 .batting-tabs [aria-selected="true"], .batting-choices [aria-pressed="true"] {
   border-color: #ffd27b; color: #fff5da; background: #315780; font-weight: 700;
 }
@@ -225,11 +244,12 @@
 .right-batter { width: 100%; color: #a1bdd4; }
 .strike-grid {
   display: grid; grid-template-columns: 44px repeat(3, minmax(0, 1fr)) 44px;
-  grid-template-rows: 44px repeat(3, minmax(44px, auto)) 44px;
+  grid-template-rows: repeat(5, minmax(44px, auto));
   gap: 1px; padding: 3px;
 }
 .zone-cell {
-  position: relative; min-width: 0; min-height: 44px; padding: 2px; color: #f2f7ff;
+  display: grid; align-content: center; gap: 2px;
+  min-width: 0; min-height: 44px; padding: 3px 2px; color: #f2f7ff;
   border: 1px solid #7898b2; border-radius: 3px; background: #214c66; touch-action: manipulation;
 }
 .zone-outside { background: #12283d; border-color: #536e83; border-style: dashed; }
@@ -238,7 +258,7 @@
 .zone-markers { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .zone-markers > span {
   display: inline-grid; place-items: center; min-width: 1.25em; padding-inline: 2px; border-radius: 999px;
-  color: #f7fbff; background: #14263b; border: 1px solid #e6edf4; font-size: .78em;
+  color: #f7fbff; background: #14263b; border: 1px solid #e6edf4; font-size: .78em; line-height: 1.15;
 }
 .batting-choices { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .batting-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { BallField, pitchLocationLabel, StrikeZone } from './BattingDiagrams'
 import { initialPitchTypes, positions, type Pitch, type PitchLocation, type PitchTypeSnapshot, type PlateAppearance } from './matchDetails'
 import { updateMatchDetails, type MatchTarget } from './matches'
@@ -25,6 +25,7 @@ const positionLabels: Record<typeof positions[number], string> = {
 }
 const reflections = [['feel', '手応え・良かったこと'], ['reflection', '反省点'], ['improvement', '改善点・次に意識すること']] as const
 const tabs = ['投球内容', '打席内容'] as const
+const missingResult = '確定するには打席結果を選んでください。'
 type PitchDraft = { id?: string; type?: PitchTypeSnapshot; location?: PitchLocation; result?: Pitch['result'] }
 
 function nextOrder(rows: { order: number }[]) {
@@ -115,10 +116,47 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
+  const editor = useRef<HTMLElement>(null)
+  const saveBar = useRef<HTMLDivElement>(null)
   const tabId = useId()
   const pitches = [...(plate.pitches ?? [])].sort((a, b) => a.order - b.order)
   const pitchPending = Boolean(pitch.id || pitch.type || pitch.location || pitch.result)
   const update = (patch: Partial<PlateAppearance>) => setPlate(current => ({ ...current, ...patch }))
+
+  useEffect(() => {
+    const section = editor.current
+    const bar = saveBar.current
+    if (!section || !bar) return
+    const viewport = window.visualViewport
+    let fullHeight = viewport?.height ?? window.innerHeight
+    const measure = () => {
+      const height = Math.ceil(bar.getBoundingClientRect().height)
+      if (height) section.style.setProperty('--batting-save-height', height + 'px')
+    }
+    const updateKeyboard = () => {
+      const focused = document.activeElement
+      const typing = focused instanceof HTMLElement && section.contains(focused) &&
+        focused.matches('textarea, input:not([type]), input[type="text"]')
+      const visibleHeight = viewport?.height ?? window.innerHeight
+      if (!typing || (viewport?.scale ?? 1) !== 1) fullHeight = visibleHeight
+      section.toggleAttribute('data-batting-keyboard', typing &&
+        (viewport?.scale ?? 1) === 1 && Math.max(fullHeight, window.innerHeight) - visibleHeight > 120)
+    }
+    const resize = new ResizeObserver(measure)
+    resize.observe(bar)
+    measure()
+    viewport?.addEventListener('resize', updateKeyboard)
+    window.addEventListener('resize', updateKeyboard)
+    section.addEventListener('focusin', updateKeyboard)
+    section.addEventListener('focusout', updateKeyboard)
+    return () => {
+      resize.disconnect()
+      viewport?.removeEventListener('resize', updateKeyboard)
+      window.removeEventListener('resize', updateKeyboard)
+      section.removeEventListener('focusin', updateKeyboard)
+      section.removeEventListener('focusout', updateKeyboard)
+    }
+  }, [])
 
   function savePitch() {
     const { id, location, result, type } = pitch
@@ -135,7 +173,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     setError('')
     if (pitchPending) { setTab(0); setError('入力中の投球を追加・更新するか、選択を取り消してください。'); return }
     if ((balls === '') !== (strikes === '')) { setTab(0); setError('最終投球前カウントはBとSを両方指定してください。'); return }
-    if (status === 'complete' && !plate.result) { setTab(1); setError('確定するには打席結果を選んでください。'); return }
+    if (status === 'complete' && !plate.result) { setTab(1); setError(missingResult); return }
     if (pitchCount.trim() && !/^\d+$/.test(pitchCount.trim())) { setTab(0); setError('球数は0以上の整数で入力してください。'); return }
     pending.current = true
     setBusy(true)
@@ -157,7 +195,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     finally { pending.current = false; setBusy(false) }
   }
 
-  return <section className="card batting-editor">
+  return <section className="card batting-editor batting-editor-with-save" ref={editor}>
     <h2>第{plate.order}打席</h2>
     <fieldset className="batting-form" disabled={busy}>
       <div className="batting-tabs" role="tablist" aria-label="打席の入力区分">
@@ -219,7 +257,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
           </fieldset>
           <CountSelect label="アウト数（打席時・任意）" symbol="O" max={2} value={plate.outs?.toString() ?? ''}
             onChange={value => update({ outs: value === '' ? undefined : Number(value) })} />
-        </> : <>
+        </> : <div className="batting-result-fields">
           <BallField point={plate.fieldPoint} onSelect={fieldPoint => update({ fieldPoint })} />
           <label>打球の種類<select value={plate.battedBall ?? ''} onChange={event => update({ battedBall: (event.target.value || undefined) as PlateAppearance['battedBall'] })}>
             <option value="">未入力</option>{Object.entries(ballLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -227,6 +265,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
           <label>打席結果<select value={plate.result ?? ''} onChange={event => {
             const result = (event.target.value || undefined) as PlateAppearance['result']
             update({ result, errorPosition: result === 'reachedOnError' ? plate.errorPosition : undefined })
+            if (result && error === missingResult) setError('')
           }}><option value="">未入力</option>{Object.entries(resultLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           {plate.result === 'reachedOnError' && <label>失策した守備位置（任意）
             <select value={plate.errorPosition ?? ''} onChange={event => update({ errorPosition: (event.target.value || undefined) as PlateAppearance['errorPosition'] })}>
@@ -237,18 +276,20 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
             <option value="">未入力</option>{Object.entries(buntLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select></label>
           <p className="hint">バント安打は「単打」と「バント」、試行の結果は「バントの試行・成否」に記録します。</p>
-        </>}
+        </div>}
       </div>
       <fieldset className="fields"><legend>打席の振り返り（任意）</legend>
         {reflections.map(([key, label]) => <label key={key}>{label}<textarea rows={2} value={plate[key] ?? ''}
           onChange={event => update({ [key]: event.target.value })} /></label>)}
       </fieldset>
-      <div className="form-actions">
-        <button type="button" className="action filled" onClick={() => void save('complete')}>打席を確定</button>
-        <button type="button" className="action" onClick={() => void save('draft')}>下書き保存</button>
-        <button type="button" className="action" onClick={onClose}>キャンセル</button>
+      <div><button type="button" className="action" onClick={onClose}>キャンセル</button></div>
+      <div className="batting-save-bar" ref={saveBar} role="group" aria-label="打席の保存">
+        {error && <p role="alert" className="error">{error}</p>}
+        <div className="batting-save-actions">
+          <button type="button" className="action" onClick={() => void save('draft')}>下書き保存</button>
+          <button type="button" className="action filled" onClick={() => void save('complete')}>打席を確定</button>
+        </div>
       </div>
     </fieldset>
-    {error && <p role="alert" className="error">{error}</p>}
   </section>
 }

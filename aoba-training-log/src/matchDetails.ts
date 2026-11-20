@@ -53,6 +53,7 @@ export type PitchLocation =
 export type Pitch = OrderedRow & { type: PitchTypeSnapshot; result: typeof pitchResults[number]; location: PitchLocation }
 
 export type PlateAppearance = DraftableRow & Reflection & {
+  batterSide?: 'right' | 'left'
   result?: typeof plateResults[number]
   rbi?: number
   bunt?: typeof buntResults[number]
@@ -200,6 +201,7 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
   const version = value.version
   const ids = new Set<unknown>()
   if (!rows(value.plateAppearances, row => draftable(row) &&
+    optional(row.batterSide, v => v === 'right' || v === 'left') &&
     (row.status === 'complete' ? oneOf(row.result, plateResults) : optional(row.result, v => oneOf(v, plateResults))) &&
     optional(row.bunt, v => oneOf(v, buntResults)) && optional(row.battedBall, v => oneOf(v, battedBallTypes)) &&
     optional(row.fieldPoint, fieldPoint) && optional(row.rbi, count) &&

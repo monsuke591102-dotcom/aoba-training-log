@@ -218,3 +218,28 @@ test('旧位置と旧球数を保持したまま座標形式を保存・再読�
   await restored.update(restoreChange(backup, initialData()))
   expect(await restored.read()).toEqual(edited)
 })
+
+test('打席の左右を保存・復元しても投球位置と他分野を保持し、旧打席は未記録のまま読む', async () => {
+  const { target, details, saved } = fixture()
+  const [first, legacy] = details.plateAppearances
+  const db = 'batter-side-' + crypto.randomUUID()
+  const store = createStorage(db)
+  await store.update(() => saved)
+  for (const batterSide of ['right', 'left', undefined] as const) {
+    await store.update(data => saveMatchDetailRow(data, target, 'plateAppearances', { ...first, batterSide }, now))
+    const reopened = await createStorage(db).read()
+    expect(reopened.matches![0].details).toEqual({
+      ...details, plateAppearances: [{ ...first, batterSide }, ...details.plateAppearances.slice(1)],
+    })
+    const backup = decodeBackup(encodeBackup(reopened))
+    expect(backup.backupVersion).toBe(2)
+    const restored = createStorage('restore-' + crypto.randomUUID())
+    await restored.update(restoreChange(backup, initialData()))
+    const plates = (await restored.read()).matches![0].details!.plateAppearances
+    expect(plates[0].batterSide).toBe(batterSide)
+    expect(plates[1]).toEqual(legacy)
+  }
+  expect(() => validateData({ ...saved, matches: [{ ...saved.matches![0], details: {
+    ...details, plateAppearances: [{ ...first, batterSide: 'invalid' }, ...details.plateAppearances.slice(1)],
+  } }] })).toThrow()
+})

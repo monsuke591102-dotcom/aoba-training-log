@@ -35,7 +35,6 @@ export function pitchLocationLabel(location: PitchLocation) {
 }
 
 type DiagramPitch = Pick<Pitch, 'id' | 'order' | 'type' | 'location'>
-type BatterSide = 'left' | 'right'
 
 // Keep the recorded anchor exact. Each label occupies the nearest available cell.
 const markerColumns = 6
@@ -69,23 +68,8 @@ function PitchBadge({ pitch }: { pitch: DiagramPitch }) {
   </span>
 }
 
-function BatterSilhouette({ side }: { side: BatterSide }) {
-  return <svg className="strike-batter" data-batter={side} viewBox="0 0 72 128" aria-hidden="true">
-    <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M29 44 12 16" strokeWidth="5" />
-      <path d="M15 21 8 10" strokeWidth="8" />
-      <path d="M32 79 23 99 15 117m23-39 16 20-2 19" strokeWidth="10" />
-      <path d="M16 118H7m45 0h11" strokeWidth="8" />
-      <path d="M44 46 53 53 29 44m5-1-11 13 6-12" strokeWidth="7" />
-    </g>
-    <path d="M29 45q9-10 18-1l-1 17-5 24H27l-1-22Z" fill="currentColor" />
-    <circle cx="44" cy="29" r="9" fill="currentColor" />
-    <path d="M34 28q0-11 11-11 8 0 10 9l7 3v3H40Z" fill="currentColor" />
-  </svg>
-}
-
-export function StrikeZone({ location, pitches, batterSide = 'right', onSelect }: {
-  location?: PitchLocation; pitches: DiagramPitch[]; batterSide?: BatterSide; onSelect: (location: PitchLocation) => void
+export function StrikeZone({ location, pitches, onSelect }: {
+  location?: PitchLocation; pitches: DiagramPitch[]; onSelect: (location: PitchLocation) => void
 }) {
   const selected = location && pitchPoint(location)
   const markers = pitchMarkers(pitches)
@@ -120,28 +104,25 @@ export function StrikeZone({ location, pitches, batterSide = 'right', onSelect }
 
   return <figure className="batting-diagram">
     <figcaption>投球コース · 捕手視点</figcaption>
-    <div className="strike-scene">
-      <BatterSilhouette side={batterSide} />
-      <button type="button" className="strike-grid" aria-label="ストライクゾーンとゾーン外で投球位置を指定"
-        aria-describedby="strike-grid-help" onClick={tap} onKeyDown={move}>
-        <svg className="strike-guides" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <rect x={zoneMin * 100} y={zoneMin * 100} width={(zoneMax - zoneMin) * 100} height={(zoneMax - zoneMin) * 100} />
-          <path d="M40 20v60 M60 20v60 M20 40h60 M20 60h60" />
-        </svg>
-        <svg className="zone-anchors" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          {markers.map(({ pitch, anchor, label }) => <g key={pitch.id}>
-            {label && <line x1={anchor.x * 100} y1={anchor.y * 100} x2={label.x * 100} y2={label.y * 100} />}
-            <circle data-pitch-order={pitch.order} cx={anchor.x * 100} cy={anchor.y * 100} r="1" />
-          </g>)}
-        </svg>
-        {markers.map(({ pitch, label }) => label && <span key={pitch.id} className="zone-marker"
-          aria-hidden="true" data-pitch-order={pitch.order} style={{ left: label.x * 100 + '%', top: label.y * 100 + '%' }}>
-          <PitchBadge pitch={pitch} />
-        </span>)}
-        {selected && <span className="zone-selection" aria-hidden="true"
-          style={{ left: selected.x * 100 + '%', top: selected.y * 100 + '%' }} />}
-      </button>
-    </div>
+    <button type="button" className="strike-grid" aria-label="ストライクゾーンとゾーン外で投球位置を指定"
+      aria-describedby="strike-grid-help" onClick={tap} onKeyDown={move}>
+      <svg className="strike-guides" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <rect x={zoneMin * 100} y={zoneMin * 100} width={(zoneMax - zoneMin) * 100} height={(zoneMax - zoneMin) * 100} />
+        <path d="M40 20v60 M60 20v60 M20 40h60 M20 60h60" />
+      </svg>
+      <svg className="zone-anchors" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {markers.map(({ pitch, anchor, label }) => <g key={pitch.id}>
+          {label && <line x1={anchor.x * 100} y1={anchor.y * 100} x2={label.x * 100} y2={label.y * 100} />}
+          <circle data-pitch-order={pitch.order} cx={anchor.x * 100} cy={anchor.y * 100} r="1" />
+        </g>)}
+      </svg>
+      {markers.map(({ pitch, label }) => label && <span key={pitch.id} className="zone-marker"
+        aria-hidden="true" data-pitch-order={pitch.order} style={{ left: label.x * 100 + '%', top: label.y * 100 + '%' }}>
+        <PitchBadge pitch={pitch} />
+      </span>)}
+      {selected && <span className="zone-selection" aria-hidden="true"
+        style={{ left: selected.x * 100 + '%', top: selected.y * 100 + '%' }} />}
+    </button>
     {overflow.length > 0 && <div className="zone-marker-overflow" aria-label="図に収まらない投球">
       {overflow.map(({ pitch }) => <PitchBadge key={pitch.id} pitch={pitch} />)}
     </div>}

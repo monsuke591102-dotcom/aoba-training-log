@@ -239,15 +239,9 @@
 }
 .batting-diagram { margin: 0; min-width: 0; }
 .batting-diagram figcaption { margin-bottom: 6px; font-weight: 700; color: #b9dfff; }
-.strike-scene {
-  display: grid; grid-template-columns: minmax(30px, .17fr) minmax(0, 1fr) minmax(30px, .17fr);
-  align-items: center; background: #102d45; border-radius: 8px; max-width: 28rem;
-}
-.strike-batter { grid-row: 1; width: 100%; color: #a1bdd4; }
-.strike-batter[data-batter="right"] { grid-column: 1; }
-.strike-batter[data-batter="left"] { grid-column: 3; transform: scaleX(-1); }
 .strike-grid {
-  grid-column: 2; grid-row: 1; position: relative; width: 100%; aspect-ratio: 1; display: block;
+  position: relative; display: block; width: 100%; max-width: 28rem;
+  margin-inline: auto; aspect-ratio: 1;
   padding: 0; border: 0; background: #12283d;
   overflow: hidden; cursor: crosshair; touch-action: manipulation;
 }

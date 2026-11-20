@@ -113,7 +113,6 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     }
     return [...types.values()]
   })
-  const [batterSide, setBatterSide] = useState<'right' | 'left'>('right')
   const [extraPitch, setExtraPitch] = useState('')
   const [rbiInput, setRbiInput] = useState(plate.rbi?.toString() ?? '')
   const [balls, setBalls] = useState(plate.beforeFinalPitch?.balls.toString() ?? '')
@@ -201,11 +200,15 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
       </div>
       <div id={tabId + '-panel'} role="tabpanel" aria-labelledby={tabId + '-tab-' + tab} className="batting-panel">
         {tab === 0 ? <>
-          <div className="batting-choices" role="group" aria-label="打者の向き">
-            <button type="button" className="action" aria-pressed={batterSide === 'right'} onClick={() => setBatterSide('right')}>右打者</button>
-            <button type="button" className="action" aria-pressed={batterSide === 'left'} onClick={() => setBatterSide('left')}>左打者</button>
+          <div className="batting-choices" role="group" aria-label="打席の左右（任意）">
+            <button type="button" className="action" aria-pressed={plate.batterSide === 'right'}
+              onClick={() => update({ batterSide: 'right' })}>右打者</button>
+            <button type="button" className="action" aria-pressed={plate.batterSide === 'left'}
+              onClick={() => update({ batterSide: 'left' })}>左打者</button>
+            <button type="button" className="action" aria-pressed={plate.batterSide === undefined}
+              onClick={() => update({ batterSide: undefined })}>未記録</button>
           </div>
-          <StrikeZone location={pitch.location} pitches={diagramPitches} batterSide={batterSide}
+          <StrikeZone location={pitch.location} pitches={diagramPitches}
             onSelect={location => setPitch(current => ({ ...current, location }))} />
           <fieldset className="batting-choices"><legend>球種</legend>
             {pitchTypes.map(type => <button key={type.id} type="button" className="action" aria-pressed={pitch.type && displayPitchType(pitch.type).id === type.id}

@@ -43,12 +43,11 @@ test('旧ストレートは原本を保ちつつ標準の球種・記号で表�
   expect(displayPitchType(custom)).toBe(custom)
 })
 
-test('投球面は同じまま右打者と左打者を切り替えられる', () => {
-  for (const side of ['right', 'left'] as const) {
-    const html = renderToStaticMarkup(<StrikeZone batterSide={side} pitches={[]} onSelect={vi.fn()} />)
-    expect(html).toContain(`class="strike-batter" data-batter="${side}"`)
-    expect(html.match(/class="strike-grid"/g)).toHaveLength(1)
-  }
+test('投球コース図は捕手視点の補助線と位置表示だけを描画する', () => {
+  const html = renderToStaticMarkup(<StrikeZone pitches={[]} onSelect={vi.fn()} />)
+  expect(html).toContain('捕手視点')
+  expect(html.match(/<svg/g)).toHaveLength(2)
+  expect(html).not.toContain('strike-batter')
 })
 
 test('投球位置は幅が変わっても同じ相対座標になり、境界とゾーン外を保持する', () => {

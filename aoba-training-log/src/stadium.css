@@ -183,17 +183,17 @@
   border-color: #436692; background: #0e2446;
 }
 [data-screen="設定"] .menu-group > summary, .routine-menu-selector .menu-group > summary { background: #1e4169; }
-[data-screen="設定"] .settings-menu-category {
+.menu-category-label {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
 }
-[data-screen="設定"] .settings-menu-category-icon { display: grid; color: #e3bd77; }
-[data-screen="設定"] [data-menu-category="守備"] .settings-menu-category-icon { color: #b4d6b8; }
-[data-screen="設定"] [data-menu-category="走塁"] .settings-menu-category-icon { color: #a4d5ee; }
-[data-screen="設定"] [data-menu-category="体づくり"] .settings-menu-category-icon { color: #d2c4ed; }
-[data-screen="設定"] [data-menu-category="その他"] .settings-menu-category-icon { color: #d5dee8; }
+.menu-category-icon { display: grid; color: #e3bd77; }
+.menu-group[data-menu-category="守備"] .menu-category-icon { color: #b4d6b8; }
+.menu-group[data-menu-category="走塁"] .menu-category-icon { color: #a4d5ee; }
+.menu-group[data-menu-category="体づくり"] .menu-category-icon { color: #d2c4ed; }
+.menu-group[data-menu-category="その他"] .menu-category-icon { color: #d5dee8; }
 [data-screen="設定"] .settings-menu-add {
   min-height: 44px;
   max-width: 100%;

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
+import { MenuCategoryLabel } from './BaseballArt'
 import { categories, units } from './initialData'
 import type { Menu, RoutineItem } from './model'
 import { changeRoutineMode, selectRoutineMenu, weekdays, type RoutineDraftItem } from './routines'
@@ -14,7 +15,7 @@ export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem;
     (mode === 'quantity' && Boolean(item.pausedLink))
   const selected = needsMenu ? undefined : menu
   const otherMenus = menus.filter(menu => !categories.includes(menu.category))
-  const groups: { label: string; menus: Menu[] }[] =
+  const groups: { label: Menu['category'] | '未分類'; menus: Menu[] }[] =
     categories.map(category => ({ label: category, menus: menus.filter(menu => menu.category === category) }))
   if (otherMenus.length) groups.push({ label: '未分類', menus: otherMenus })
   return <fieldset className="fields">
@@ -30,11 +31,11 @@ export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem;
       <p className="entry-note" role="status">選択中：{needsMenu ? '選び直してください' : selected ? menuLabel(selected) : 'なし'}</p>
       <button type="button" className="action" disabled={needsMenu} aria-pressed={!needsMenu && !selected}
         onClick={() => { if (selected) change(changeRoutineMode(item, undefined, menus)) }}>計画の表示のみ</button>
-      {groups.map(group => <details className="menu-group" key={group.label}>
+      {groups.map(group => <details className="menu-group" key={group.label} data-menu-category={group.label}>
         <summary onClick={({ currentTarget: summary }) => {
           const focused = summary.ownerDocument.activeElement
           if (summary.closest('details')?.open && summary.parentElement?.contains(focused) && !summary.contains(focused)) summary.focus()
-        }}><span>{group.label}</span><span>{group.menus.length}種目{group.menus.some(menu => menu.id === selected?.id) && ' · 選択中'}</span>
+        }}><MenuCategoryLabel category={group.label} /><span>{group.menus.length}種目{group.menus.some(menu => menu.id === selected?.id) && ' · 選択中'}</span>
           <ChevronDown size={18} aria-hidden="true" /></summary>
         {group.menus.length ? <ul className="routine-menu-options">
           {group.menus.map(menu => <li key={menu.id}>

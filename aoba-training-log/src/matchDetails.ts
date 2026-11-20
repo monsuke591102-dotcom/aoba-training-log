@@ -155,6 +155,10 @@ const pitchType = (v: unknown) => object(v) && id(v.id) &&
 const summaryFields = (v: unknown, fields: readonly string[]) => object(v) &&
   Object.entries(v).every(([key, value]) => fields.includes(key) && count(value))
 
+export function isHitPlateResult(result: PlateAppearance['result']) {
+  return result === 'single' || result === 'double' || result === 'triple' || result === 'homeRun'
+}
+
 export function pitchResultError({ pitches, result }: Pick<PlateAppearance, 'pitches' | 'result'>) {
   const batted = pitches?.filter(pitch => pitch.result === 'hit' || pitch.result === 'inPlayNonHit') ?? []
   if (!batted.length) return
@@ -162,7 +166,7 @@ export function pitchResultError({ pitches, result }: Pick<PlateAppearance, 'pit
     return '「ヒット」または「打球（安打以外）」は、記録した最後の投球1球だけに指定してください。'
   }
   if (!result) return
-  const isHit = result === 'single' || result === 'double' || result === 'triple' || result === 'homeRun'
+  const isHit = isHitPlateResult(result)
   if (batted[0].result === 'hit' && !isHit) {
     return '投球が「ヒット」の場合、打席結果は単打・二塁打・三塁打・本塁打から選んでください。'
   }

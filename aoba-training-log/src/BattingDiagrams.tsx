@@ -1,5 +1,5 @@
 import type { KeyboardEvent, MouseEvent, PropsWithChildren } from 'react'
-import { displayPitchType, type Pitch, type PitchLocation, type PlateAppearance } from './matchDetails'
+import { displayPitchType, isHitPlateResult, type Pitch, type PitchLocation, type PlateAppearance } from './matchDetails'
 
 type FieldPoint = NonNullable<PlateAppearance['fieldPoint']>
 const clamp = (value: number) => Math.max(0, Math.min(1, value))
@@ -35,14 +35,20 @@ export function pitchLocationLabel(location: PitchLocation) {
 }
 
 type DiagramPitch = Pick<Pitch, 'id' | 'order' | 'type' | 'location'> & { result?: Pitch['result'] }
-type MarkerTone = 'strike' | 'ball' | 'out' | 'neutral'
+type MarkerTone = 'strike' | 'ball' | 'out' | 'hit' | 'neutral'
 const explicitBattedOuts = new Set<PlateAppearance['result']>([
   'groundOut', 'flyOut', 'lineOut', 'popOut', 'doublePlay', 'triplePlay', 'otherOut',
 ])
 const isBattedPitch = ({ result }: DiagramPitch) => result === 'inPlay' || result === 'inPlayNonHit' || result === 'hit'
 
-function markerTone(pitch: DiagramPitch, outPitch: DiagramPitch | undefined): MarkerTone {
-  if (pitch === outPitch) return 'out'
+function terminalBattedTone(pitch: DiagramPitch | undefined, result: PlateAppearance['result']): MarkerTone | undefined {
+  if (!pitch) return
+  if (isHitPlateResult(result) && pitch.result !== 'inPlayNonHit') return 'hit'
+  if (explicitBattedOuts.has(result) && pitch.result !== 'hit') return 'out'
+}
+
+function markerTone(pitch: DiagramPitch, battedTone?: MarkerTone): MarkerTone {
+  if (battedTone) return battedTone
   if (pitch.result === 'ball') return 'ball'
   if (pitch.result === 'calledStrike' || pitch.result === 'swingingStrike') return 'strike'
   return 'neutral'
@@ -105,11 +111,12 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
   const markers = pitchMarkers(pitches)
   const overflow = markers.filter(marker => !marker.label)
   // The log can be partial. Only a single recorded batted ball at the end
-  // of the sequence can be associated with an explicit batted-out result.
+  // of the sequence can be associated with the plate result.
   const batted = pitches.filter(isBattedPitch)
-  const finalPitch = markers.at(-1)?.pitch
-  const outPitch = explicitBattedOuts.has(plateResult) && batted.length === 1 &&
-    finalPitch === batted[0] && finalPitch.result !== 'hit' ? finalPitch : undefined
+  const lastPitch = markers.at(-1)?.pitch
+  const terminalPitch = batted.length === 1 && lastPitch === batted[0] ? lastPitch : undefined
+  const terminalTone = terminalBattedTone(terminalPitch, plateResult)
+  const toneFor = (pitch: DiagramPitch) => markerTone(pitch, pitch === terminalPitch ? terminalTone : undefined)
 
   function select(point: FieldPoint) {
     onSelect({ zone: 'point', ...point })
@@ -154,15 +161,15 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
       </svg>
       {markers.map(({ pitch, label }) => label && <span key={pitch.id} className="zone-marker"
         aria-hidden="true" data-pitch-order={pitch.order} style={{ left: label.x * 100 + '%', top: label.y * 100 + '%' }}>
-        <PitchBadge pitch={pitch} tone={markerTone(pitch, outPitch)} />
+        <PitchBadge pitch={pitch} tone={toneFor(pitch)} />
       </span>)}
       {selected && <span className="zone-selection" aria-hidden="true"
         style={{ left: selected.x * 100 + '%', top: selected.y * 100 + '%' }} />}
     </button>
     {overflow.length > 0 && <div className="zone-marker-overflow" aria-label="図に収まらない投球">
-      {overflow.map(({ pitch }) => <PitchBadge key={pitch.id} pitch={pitch} tone={markerTone(pitch, outPitch)} />)}
+      {overflow.map(({ pitch }) => <PitchBadge key={pitch.id} pitch={pitch} tone={toneFor(pitch)} />)}
     </div>}
-    <p className="hint">黄：ストライク · 緑：ボール · 赤：打球アウト · 灰：その他・判定不可</p>
+    <p className="hint">黄：ストライク · 緑：ボール · 赤：打球アウト · 青：ヒット · 灰：その他・判定不可</p>
     <p className="hint" id="strike-grid-help">枠の内外をタップできます。キーボードでは矢印で移動、Shift＋矢印で微調整できます。</p>
   </figure>
 }

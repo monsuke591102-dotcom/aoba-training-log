@@ -47,6 +47,26 @@ test('明示ストライクとボールを色分けし、打球アウトは対�
     .toEqual(['neutral', 'neutral'])
 })
 
+test('4種類の安打を最終投球にだけ関連付け、旧打球・矛盾・欠落を区別する', () => {
+  const location = { zone: 'point', x: .4, y: .6 } as const
+  const pitch = { id: 'last', order: 2, type: initialPitchTypes[0], location, result: 'hit' } as const
+  const ball = { ...pitch, id: 'first', order: 1, result: 'ball' } as const
+  const tones = (rows: React.ComponentProps<typeof StrikeZone>['pitches'], result?: PlateAppearance['result']) =>
+    Array.from(renderToStaticMarkup(<StrikeZone pitches={rows} plateResult={result} onSelect={vi.fn()} />)
+      .matchAll(/data-tone="([^"]+)"/g), match => match[1])
+  for (const result of ['single', 'double', 'triple', 'homeRun'] as const) {
+    expect(tones([ball, pitch], result)).toEqual(['ball', 'hit'])
+    expect(tones([ball, { ...pitch, result: 'inPlay' }], result)).toEqual(['ball', 'hit'])
+  }
+  expect(tones([ball], 'single')).toEqual(['ball'])
+  expect(tones([pitch], 'groundOut')).toEqual(['neutral'])
+  expect(tones([pitch])).toEqual(['neutral'])
+  expect(tones([{ ...pitch, result: 'inPlayNonHit' }], 'single')).toEqual(['neutral'])
+  expect(tones([pitch, { ...ball, order: 3 }], 'single')).toEqual(['neutral', 'ball'])
+  expect(tones([{ ...pitch, id: 'old', order: 1, result: 'inPlay' }, pitch], 'single')).toEqual(['neutral', 'neutral'])
+  expect(tones([{ ...pitch, result: 'inPlay' }], 'groundOut')).toEqual(['out'])
+})
+
 test('旧ストレートは原本を保ちつつ標準の球種・記号で表示する', () => {
   expect(initialPitchTypes.filter(type => type.name.includes('ストレート'))).toEqual([
     { id: 'fastball', name: 'ストレート', symbol: '●' },

@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { units } from './initialData'
 import type { Menu, RoutineItem } from './model'
-import { weekdays } from './routines'
+import { changeRoutineMode, selectRoutineMenu, weekdays, type RoutineDraftItem } from './routines'
 
-export function RoutineFields({ item, menus, change }: { item: RoutineItem; menus: Menu[]; change: (item: RoutineItem) => void }) {
+export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem; menus: Menu[]; change: (item: RoutineDraftItem) => void }) {
   const menu = menus.find(menu => menu.id === item.menuId)
   const unit = item.recordUnit ?? menu?.unit
   const mode = item.mode ?? (menu ? 'quantity' : 'display')
+  const needsMenu = (item.menuId !== undefined && (!menu || unit !== menu.unit)) ||
+    (mode === 'quantity' && Boolean(item.pausedLink))
   return <fieldset className="fields">
     <label>種目名
       <span className="routine-name-field">
@@ -15,19 +17,19 @@ export function RoutineFields({ item, menus, change }: { item: RoutineItem; menu
           onChange={event => change({ ...item, name: event.target.value.replace(/\n/g, ' ') })} />
       </span>
     </label>
-    <label>記録メニュー<select value={item.menuId ?? ''} onChange={event => {
+    <label>記録メニュー<select value={needsMenu ? '' : item.menuId ?? ''} onChange={event => {
       const next = menus.find(menu => menu.id === event.target.value)
-      change({ ...item, menuId: next?.id, recordUnit: next?.unit, mode: next ? 'quantity' : undefined, name: item.name || next?.name || '', target: undefined })
+      change(next ? selectRoutineMenu(item, next) : changeRoutineMode(item, undefined, menus))
     }}>
-      <option value="">計画の表示のみ</option>
+      <option value="" disabled={needsMenu}>{needsMenu ? '記録メニューを選び直す' : '計画の表示のみ'}</option>
       {menus.map(menu => <option key={menu.id} value={menu.id}>{menu.name}（{menu.unit}）{!menu.enabled && ' · 非表示'}</option>)}
     </select></label>
+    {(item.menuId !== undefined || needsMenu) && <p className="hint">種目名は計画内の表示名です。記録先や単位を変えるには、使いたい記録メニューを選んでください。</p>}
     <label>記録方法<select value={mode} onChange={event => {
       const value = event.target.value
-      change({ ...item, menuId: undefined, target: undefined, mode: value === 'display' ? undefined : value as 'check' | 'quantity',
-        recordUnit: value === 'quantity' ? unit : undefined })
+      change(changeRoutineMode(item, value === 'display' ? undefined : value as RoutineItem['mode'], menus))
     }}><option value="display">計画の表示のみ</option><option value="quantity">数量</option><option value="check">完了チェック</option></select></label>
-    {mode === 'quantity' && <label>記録単位<select value={unit ?? ''} onChange={event => {
+    {mode === 'quantity' && <label>記録単位<select disabled={item.menuId !== undefined || needsMenu} value={unit ?? ''} onChange={event => {
       const value = (event.target.value || undefined) as Menu['unit'] | undefined
       change({ ...item, menuId: undefined, recordUnit: value, target: undefined })
     }}><option value="">単位を選ぶ</option>{units.map(value => <option key={value}>{value}</option>)}</select></label>}

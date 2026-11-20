@@ -4,6 +4,29 @@ import { saveMenu, InputError } from './training'
 
 export const weekdays = ['日', '月', '火', '水', '木', '金', '土']
 
+export type RoutineDraftItem = RoutineItem & {
+  pausedLink?: Pick<RoutineItem, 'recordUnit' | 'target'> & { menuId: string }
+}
+
+export function changeRoutineMode(item: RoutineDraftItem, mode: RoutineItem['mode'], menus: Menu[]): RoutineDraftItem {
+  const unit = item.recordUnit ?? menus.find(menu => menu.id === item.menuId)?.unit
+  const pausedLink = item.menuId === undefined ? item.pausedLink
+    : { menuId: item.menuId, recordUnit: unit, target: item.target }
+  if (mode === 'quantity' && pausedLink) {
+    const menu = menus.find(menu => menu.id === pausedLink.menuId)
+    if (menu && menu.unit === pausedLink.recordUnit) {
+      return { ...item, ...pausedLink, mode, pausedLink: undefined }
+    }
+  }
+  return { ...item, menuId: undefined, mode, target: undefined, pausedLink,
+    recordUnit: mode === 'quantity' ? unit : undefined }
+}
+
+export function selectRoutineMenu(item: RoutineDraftItem, menu: Menu): RoutineDraftItem {
+  return { ...item, menuId: menu.id, recordUnit: menu.unit, mode: 'quantity',
+    name: item.name || menu.name, target: undefined, pausedLink: undefined }
+}
+
 export function routineForDate(data: TrainingData, date: LocalDate) {
   let active: RoutineVersion | undefined
   for (const version of data.routineVersions ?? []) {
@@ -21,14 +44,12 @@ export function isMenuDeleted(data: TrainingData, date: LocalDate, menuId?: stri
 }
 
 export function findRoutineMenu(menus: Menu[], item: RoutineItem) {
-  const linked = menus.find(menu => menu.id === item.menuId)
-  if (item.mode !== 'quantity') return linked
-  const unit = item.recordUnit ?? linked?.unit
+  if (item.menuId !== undefined) return menus.find(menu => menu.id === item.menuId)
+  if (item.mode !== 'quantity') return undefined
   const group = item.group?.trim()
   const label = (group ? group + ' · ' : '') + item.name.trim()
   const normalize = (value: string) => value.normalize('NFKC').trim()
-  const matches = (menu: Menu) => menu.unit === unit && normalize(menu.name) === normalize(label)
-  return linked && matches(linked) ? linked : menus.find(matches)
+  return menus.find(menu => menu.unit === item.recordUnit && normalize(menu.name) === normalize(label))
 }
 
 export function dailyRoutine(data: TrainingData, date: LocalDate, today = localDate(new Date())) {
@@ -49,7 +70,7 @@ export function nextMonth(today: Date) {
   return localDate(new Date(today.getFullYear(), today.getMonth() + 1, 1))
 }
 
-export function saveRoutine(data: TrainingData, version: RoutineVersion, now = new Date()): TrainingData {
+export function saveRoutine(data: TrainingData, version: Omit<RoutineVersion, 'items'> & { items: RoutineDraftItem[] }, now = new Date()): TrainingData {
   if (!isLocalDate(version.startsOn) || version.startsOn < localDate(now)) throw new InputError('適用開始日は今日以降を選んでください。')
   const versions = data.routineVersions ?? []
   if (versions.some(item => item.id === version.id || (version.sourceKey && item.sourceKey === version.sourceKey))) {
@@ -58,20 +79,26 @@ export function saveRoutine(data: TrainingData, version: RoutineVersion, now = n
   const seen = new Set<string>()
   const menuIds = new Set<string>()
   let candidate = data
-  const items = version.items.map(draft => {
+  const items = version.items.map(({ pausedLink, ...draft }) => {
+    if (draft.mode === 'quantity' && pausedLink) {
+      throw new InputError(draft.name + 'の記録メニューまたは単位が変わりました。記録メニューを選び直してください。')
+    }
     if (data.deletedMenus?.some(menu => menu.id === draft.menuId)) {
-      throw new InputError(draft.name + 'は削除済みです。計画から除外してください。')
+      throw new InputError(draft.name + 'は削除済みです。記録メニューを選び直すか、計画から除外してください。')
     }
     let item = { ...draft, group: draft.group?.trim() || undefined }
+    const linked = item.menuId !== undefined ? findRoutineMenu(candidate.menus, item) : undefined
+    if (item.menuId !== undefined && (!linked || (item.recordUnit !== undefined && item.recordUnit !== linked.unit))) {
+      throw new InputError(item.name + 'の記録メニューまたは単位が変わりました。記録メニューを選び直してください。')
+    }
     if (item.mode === 'quantity') {
-      const base = candidate.menus.find(menu => menu.id === item.menuId)
-      const unit = item.recordUnit ?? base?.unit
+      const unit = item.recordUnit ?? linked?.unit
       if (!unit) throw new InputError(item.name + 'の記録単位を選んでください。')
       const label = item.group ? item.group + ' · ' + item.name.trim() : item.name.trim()
-      const existing = findRoutineMenu(candidate.menus, item)
+      const existing = linked ?? findRoutineMenu(candidate.menus, item)
       if (existing) item = { ...item, menuId: existing.id, recordUnit: unit }
       else {
-        const menu = { id: crypto.randomUUID(), name: label, unit, category: base?.category ?? 'その他' as const, enabled: true }
+        const menu = { id: crypto.randomUUID(), name: label, unit, category: 'その他' as const, enabled: true }
         candidate = saveMenu(candidate, menu, '', now, undefined, true)
         item = { ...item, menuId: menu.id, recordUnit: unit }
       }

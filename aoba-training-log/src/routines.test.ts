@@ -5,12 +5,12 @@ import { savePlan } from './activities'
 import { decodeBackup, encodeBackup } from './backup'
 import { importCandidates, parseSchedule, type TrainingSheet } from './excelPlan'
 import { initialData } from './initialData'
-import type { RoutineItem } from './model'
+import type { RoutineItem, RoutineVersion, TrainingData } from './model'
 import { dailyStats, managementProgress } from './progress'
 import { saveQuickRecord } from './quickRecord'
-import { dailyRoutine, nextMonth, plannedMenuIds, routineForDate, saveRoutine, setRoutineAddition, setRoutineCompletion } from './routines'
+import { changeRoutineMode, dailyRoutine, nextMonth, plannedMenuIds, routineForDate, saveRoutine, selectRoutineMenu, setRoutineAddition, setRoutineCompletion } from './routines'
 import { syncOnce, type RemoteSnapshot, type SnapshotApi } from './sync'
-import { setMenuEnabled } from './training'
+import { saveMenu, setMenuEnabled } from './training'
 
 const now = new Date(2026, 10, 16, 12)
 const monday = '2026-11-16'
@@ -142,7 +142,7 @@ test('単位・名称・所属グループの変更を新しい版として保�
   }] }, now)
   const old = saveQuickRecord(original, monday, 'swing', '回', '自主練', { delta: 10 }, now)
   const next = saveRoutine(old, { id: 'next-group', startsOn: '2026-12-01', items: [{
-    ...original.routineVersions![0].items[0], name: '素振り15回', group: '打撃', recordUnit: 'セット',
+    ...original.routineVersions![0].items[0], menuId: undefined, name: '素振り15回', group: '打撃', recordUnit: 'セット',
     target: { amount: 3, unit: 'セット' },
   }] }, now)
   expect(routineForDate(next, monday)?.items[0]).toMatchObject({ menuId: 'swing', recordUnit: '回' })
@@ -150,6 +150,108 @@ test('単位・名称・所属グループの変更を新しい版として保�
   expect(next.records).toEqual(old.records)
   expect(next.menus.find(menu => menu.id === 'swing')).toEqual(old.menus.find(menu => menu.id === 'swing'))
   expect(decodeBackup(encodeBackup(next, now)).data).toEqual(JSON.parse(JSON.stringify(next)))
+})
+
+function balancePlan() {
+  const group = '軸足バランス'
+  const linked: RoutineItem[] = ['右', '左'].map(side => ({
+    id: side, name: group + '(' + side + ')', group, mode: 'quantity', recordUnit: '分',
+    target: { amount: 5, unit: '分' }, schedule: 'daily', weekdays: [], note: '', condition: '',
+  }))
+  const data = saveRoutine(initialData(), { id: 'balance', startsOn: monday, items: [...linked, {
+    id: 'check', name: '確認', mode: 'check', schedule: 'daily', weekdays: [], note: '', condition: '',
+  }] }, now)
+  const version = routineForDate(data, monday)!
+  const [right, left] = version.items.map(item => data.menus.find(menu => menu.id === item.menuId)!)
+  return { data, version, right, left }
+}
+
+test.each([false, true])('記録方法を往復しても左右の元IDと目標を保つ（改名・非表示・旧名の別ID: %s）', renamed => {
+  const { data, version, right, left } = balancePlan()
+  const recorded = saveQuickRecord(data, monday, right.id, right.unit, '自主練', { delta: 1 }, now)
+  let before = recorded
+  if (renamed) {
+    before = saveMenu(before, { ...right, name: '軸足バランス(右)' }, '', now)
+    before = saveMenu(before, { ...right, id: 'old-name' }, '', now, undefined, true)
+    before = setMenuEnabled(before, right.id, false)
+  }
+  const drafts = version.items.slice(0, 2).map(item =>
+    changeRoutineMode(changeRoutineMode(item, 'check', before.menus), 'quantity', before.menus))
+  const saved = saveRoutine(before, { ...version, id: 'mode-copy', startsOn: wednesday, items: drafts }, now)
+  expect(saved.menus).toBe(before.menus)
+  expect(saved.records).toBe(recorded.records)
+  expect(saved.goals).toBe(before.goals)
+  expect(saved.routineVersions?.[0]).toBe(version)
+  expect(routineForDate(saved, wednesday)?.items).toEqual(version.items.slice(0, 2))
+  expect(dailyRoutine(saved, wednesday, wednesday).selected.map(item => item.menuId))
+    .toEqual(renamed ? [left.id] : [right.id, left.id])
+})
+
+test.each(['missing', 'deleted', 'unit changed'])('無効な退避先では明示選択まで数量保存を拒否する（%s）', reason => {
+  const { data, version, right, left } = balancePlan()
+  const check = changeRoutineMode(version.items[0], 'check', data.menus)
+  const menus = reason === 'unit changed'
+    ? data.menus.map(menu => menu.id === right.id ? { ...menu, unit: '回' as const } : menu)
+    : data.menus.filter(menu => menu.id !== right.id)
+  const latest: TrainingData = { ...data, menus: [...menus, { ...right, id: 'same-name' }],
+    deletedMenus: reason === 'deleted' ? [{ ...right, deletedOn: wednesday }] : undefined }
+  const returned = changeRoutineMode(check, 'quantity', latest.menus)
+  expect(returned.menuId).toBeUndefined()
+  const copy: RoutineVersion = { ...version, id: 'mode-copy', startsOn: wednesday }
+  expect(() => saveRoutine(latest, { ...copy, items: [returned] }, now)).toThrow('選び直してください')
+  const selected = selectRoutineMenu(check, left)
+  const final = changeRoutineMode(changeRoutineMode(selected, 'check', latest.menus), 'quantity', latest.menus)
+  expect(saveRoutine(latest, { ...copy, items: [final] }, now).routineVersions?.at(-1)?.items[0].menuId).toBe(left.id)
+})
+
+test('完了チェックの退避情報は保存せず、元からIDのない種目は従来どおり扱う', async () => {
+  const { data, version, right } = balancePlan()
+  const db = 'routine-mode-' + crypto.randomUUID()
+  const store = createAccountStorage('test', db)
+  const check = changeRoutineMode(version.items[0], 'check', data.menus)
+  expect(check.pausedLink?.menuId).toBe(right.id)
+  const unlinked = changeRoutineMode(version.items[2], 'quantity', data.menus)
+  expect(unlinked.pausedLink).toBeUndefined()
+  await store.save(() => saveRoutine(data, { ...version, id: 'mode-copy', startsOn: wednesday,
+    items: [check, { ...unlinked, recordUnit: '回' }] }, now))
+  const reloaded = (await createAccountStorage('test', db).read()).data
+  const [savedCheck, savedQuantity] = routineForDate(reloaded, wednesday)!.items
+  expect(savedCheck.mode).toBe('check')
+  expect(savedCheck.menuId).toBeUndefined()
+  expect(savedCheck).not.toHaveProperty('pausedLink')
+  expect(savedQuantity.menuId).toBeDefined()
+  expect(reloaded.menus).toHaveLength(data.menus.length + 1)
+})
+
+test.each([false, true])('改名後の計画コピーは左右のIDと過去データを保持する（左も改名: %s）', renameLeft => {
+  const { data, version, right, left } = balancePlan()
+  const old = saveQuickRecord(data, monday, right.id, right.unit, '自主練', { delta: 1 }, now)
+  let renamed = saveMenu(old, { ...right, name: '軸足バランス(右)' }, '', now)
+  if (renameLeft) renamed = saveMenu(renamed, { ...left, name: '軸足バランス(左)' }, '', now)
+  const withOther = saveMenu(renamed, { ...right, id: 'same-old-name' }, '', now, undefined, true)
+  const hidden = setMenuEnabled(withOther, right.id, false)
+  const copied = saveRoutine(hidden, { ...version, id: 'copy', startsOn: wednesday }, now)
+  expect(copied.menus).toBe(hidden.menus)
+  expect(copied.routineVersions?.[0]).toBe(version)
+  expect(copied.records).toBe(old.records)
+  expect(copied.goals).toBe(hidden.goals)
+  expect(routineForDate(copied, wednesday)?.items.map(item => item.menuId)).toEqual([right.id, left.id, undefined])
+  expect(dailyRoutine(copied, wednesday, wednesday).selected.map(item => item.id)).toEqual(['左', 'check'])
+  expect(dailyRoutine(setMenuEnabled(copied, right.id, true), wednesday, wednesday).selected.map(item => item.id))
+    .toEqual(['右', '左', 'check'])
+})
+
+test('記録メニューIDの欠落・単位の不一致を拒否し、明示的な編集と紐づけを受け入れる', () => {
+  const { data, version, right } = balancePlan()
+  const item = version.items[0]
+  const save = (edited: RoutineItem) => saveRoutine(data, { id: 'copy', startsOn: wednesday, items: [edited] }, now)
+  expect(() => save({ ...item, menuId: 'missing' })).toThrow('選び直してください')
+  expect(() => save({ ...item, recordUnit: '回' })).toThrow('選び直してください')
+  const renamed = save({ ...item, name: '計画だけの新名称' })
+  expect(routineForDate(renamed, wednesday)?.items[0]).toMatchObject({ menuId: right.id, name: '計画だけの新名称' })
+  const relinked = save({ ...item, menuId: 'swing', recordUnit: '回', target: { amount: 12, unit: '回' } })
+  expect(routineForDate(relinked, wednesday)?.items[0]).toMatchObject({ menuId: 'swing', recordUnit: '回' })
+  expect(relinked.menus).toBe(data.menus)
 })
 
 

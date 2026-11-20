@@ -7,7 +7,7 @@ import { ExcelImport } from './ExcelImport'
 import type { LocalDate, Menu, RoutineItem, TrainingData } from './model'
 import { errorMessage, type Commit } from './recordFeedback'
 import { NewPlanMenu, RoutineFields } from './RoutineFields'
-import { findRoutineMenu, isMenuDeleted, isMenuHidden, nextMonth, routineForDate, saveRoutine, weekdays } from './routines'
+import { findRoutineMenu, isMenuDeleted, isMenuHidden, nextMonth, routineForDate, saveRoutine, weekdays, type RoutineDraftItem } from './routines'
 import { ScreenTitle } from './ScreenTitle'
 import { InputError, saveMenu } from './training'
 
@@ -21,7 +21,7 @@ export default function PlanManagement({ data, commit, back, read }: {
   const today = localDate(now)
   const versions = data.routineVersions ?? []
   const current = routineForDate(data, today)
-  const [draft, setDraft] = useState<{ startsOn: string; items: RoutineItem[]; sourceKey?: string }>()
+  const [draft, setDraft] = useState<{ startsOn: string; items: RoutineDraftItem[]; sourceKey?: string }>()
   const [pendingMenus, setPendingMenus] = useState<Menu[]>([])
   const [importing, setImporting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -42,7 +42,7 @@ export default function PlanManagement({ data, commit, back, read }: {
     setPendingMenus([])
   }
 
-  function start(startsOn: string, items: RoutineItem[], sourceKey?: string) {
+  function start(startsOn: string, items: RoutineDraftItem[], sourceKey?: string) {
     setPendingMenus([])
     setImporting(false)
     setFeedback('')

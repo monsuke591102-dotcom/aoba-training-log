@@ -64,7 +64,7 @@ function QuickRow({ data, date, kind, menu, commit, open, select, rule }: {
         aria-label={menu.name + 'の実施量を入力'} onClick={begin}>
         <span className="equipment"><Equipment category={menu.category} /></span>
         <span className="quick-value-text">
-          <strong>{rule?.group && rule.group + ' · '}{rule?.name ?? menu.name}</strong>
+          <strong>{menu.name}</strong>
           <span><b>{quantity.format(total)}{menu.unit}</b> / {target === null ? '目標未設定' : quantity.format(target) + menu.unit}
             {rate !== null && <span className={rate >= 100 ? 'success' : undefined}> · {rate}%</span>}</span>
         </span>
@@ -112,6 +112,11 @@ export function QuickRecords({ data, commit, date, kind }: {
   const other = enabled.filter(menu => !ids.has(menu.id) && !conditional.some(item => item.menuId === menu.id))
   const notesOnly = scheduled.filter(item => !visible.some(menu => menu.id === item.menuId))
 
+  function itemLabel(item: RoutineItem) {
+    const menu = data.menus.find(menu => menu.id === item.menuId)
+    return menu?.name ?? ((item.group ? item.group + ' · ' : '') + item.name)
+  }
+
   async function add(item: RoutineItem, selected: boolean) {
     setBusy(true)
     setError('')
@@ -141,7 +146,7 @@ export function QuickRecords({ data, commit, date, kind }: {
     {!visible.length && !notesOnly.length && <p className="hint">今日の対象メニューはありません。条件付きメニューやその他のメニューを確認できます。</p>}
     {rows(visible)}
     {notesOnly.length > 0 && <ul className="entries">{notesOnly.map(item => <li key={item.id}>
-      <strong>{item.group && item.group + ' · '}{item.name}</strong><RoutineNote item={item} />
+      <strong>{itemLabel(item)}</strong><RoutineNote item={item} />
       {item.mode === 'check'
         ? <label className="routine-check"><input type="checkbox" disabled={busy}
           checked={data.routineCompletions?.some(row => row.date === date && row.itemId === item.id) ?? false}
@@ -150,12 +155,12 @@ export function QuickRecords({ data, commit, date, kind }: {
     </li>)}</ul>}
     {scheduled.some(item => additions.has(item.id)) && <div className="form-actions">
       {scheduled.filter(item => additions.has(item.id)).map(item => <button key={item.id} type="button" className="action"
-        disabled={busy} onClick={() => add(item, false)}>{item.name}を今日の計画から外す</button>)}
+        disabled={busy} onClick={() => add(item, false)}>{itemLabel(item)}を今日の計画から外す</button>)}
     </div>}
     {conditional.length > 0 && <details className="quick-help">
       <summary>条件付き・任意のメニュー</summary>
-      <ul className="entries">{conditional.map(item => <li key={item.id}><strong>{item.group && item.group + ' · '}{item.name}</strong><RoutineNote item={item} />
-        <button type="button" className="action edit-menu" disabled={busy} aria-label={item.name + 'を今日に追加'}
+      <ul className="entries">{conditional.map(item => <li key={item.id}><strong>{itemLabel(item)}</strong><RoutineNote item={item} />
+        <button type="button" className="action edit-menu" disabled={busy} aria-label={itemLabel(item) + 'を今日に追加'}
           onClick={() => add(item, true)}>今日に追加</button>
       </li>)}</ul>
     </details>}

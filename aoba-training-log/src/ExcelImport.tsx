@@ -1,14 +1,14 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { importCandidates, readTrainingSheet, type ColumnMap } from './excelPlan'
-import type { Menu, RoutineItem } from './model'
+import type { Menu } from './model'
 import { RoutineFields } from './RoutineFields'
-import { findRoutineMenu } from './routines'
+import { findRoutineMenu, type RoutineDraftItem } from './routines'
 
 const labels: [keyof ColumnMap, string][] = [['name', '種目名'], ['schedule', '曜日・条件'], ['target', '数量・単位'], ['note', '補足・親メニュー']]
-type Candidate = { item: RoutineItem; selected: boolean; unresolved: boolean }
+type Candidate = { item: RoutineDraftItem; selected: boolean; unresolved: boolean }
 
 export function ExcelImport({ menus, useItems, close, backup }: {
-  menus: Menu[]; useItems: (items: RoutineItem[], sourceKey: string) => void; close: () => void; backup: () => void
+  menus: Menu[]; useItems: (items: RoutineDraftItem[], sourceKey: string) => void; close: () => void; backup: () => void
 }) {
   const [sheet, setSheet] = useState<Awaited<ReturnType<typeof readTrainingSheet>>>()
   const [map, setMap] = useState<ColumnMap>({ name: '', schedule: '', target: '', note: '' })

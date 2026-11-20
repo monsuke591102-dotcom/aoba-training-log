@@ -127,7 +127,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   const editedType = editedPitch && displayPitchType(editedPitch.type)
   const pitchTypes = catalog.map(type => type.id === editedType?.id ? editedType : type)
   const previewPitch = pitch.location && pitch.type ? {
-    id: pitch.id ?? tabId + '-pending', order: editedPitch?.order ?? nextOrder(pitches), location: pitch.location, type: pitch.type,
+    id: pitch.id ?? tabId + '-pending', order: editedPitch?.order ?? nextOrder(pitches), location: pitch.location, type: pitch.type, result: pitch.result,
   } : undefined
   const diagramPitches = previewPitch
     ? [...pitches.filter(row => row.id !== pitch.id), previewPitch]
@@ -208,7 +208,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
             <button type="button" className="action" aria-pressed={plate.batterSide === undefined}
               onClick={() => update({ batterSide: undefined })}>未記録</button>
           </div>
-          <StrikeZone location={pitch.location} pitches={diagramPitches}
+          <StrikeZone location={pitch.location} pitches={diagramPitches} plateResult={plate.result}
             onSelect={location => setPitch(current => ({ ...current, location }))} />
           <fieldset className="batting-choices"><legend>球種</legend>
             {pitchTypes.map(type => <button key={type.id} type="button" className="action" aria-pressed={pitch.type && displayPitchType(pitch.type).id === type.id}

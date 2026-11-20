@@ -34,7 +34,19 @@ export function pitchLocationLabel(location: PitchLocation) {
   return `${inside ? 'ゾーン内' : 'ゾーン外'} · 左から ${Math.round(x * 100)}%、上から ${Math.round(y * 100)}%`
 }
 
-type DiagramPitch = Pick<Pitch, 'id' | 'order' | 'type' | 'location'>
+type DiagramPitch = Pick<Pitch, 'id' | 'order' | 'type' | 'location'> & { result?: Pitch['result'] }
+type MarkerTone = 'strike' | 'ball' | 'out' | 'neutral'
+const explicitBattedOuts = new Set<PlateAppearance['result']>([
+  'groundOut', 'flyOut', 'lineOut', 'popOut', 'doublePlay', 'triplePlay', 'otherOut',
+])
+const isBattedPitch = ({ result }: DiagramPitch) => result === 'inPlay' || result === 'inPlayNonHit' || result === 'hit'
+
+function markerTone(pitch: DiagramPitch, outPitch: DiagramPitch | undefined): MarkerTone {
+  if (pitch === outPitch) return 'out'
+  if (pitch.result === 'ball') return 'ball'
+  if (pitch.result === 'calledStrike' || pitch.result === 'swingingStrike') return 'strike'
+  return 'neutral'
+}
 
 // Keep the recorded anchor exact. Each label occupies the nearest available cell.
 const markerColumns = 6
@@ -61,19 +73,43 @@ function pitchMarkers(pitches: DiagramPitch[]) {
   })
 }
 
-function PitchBadge({ pitch }: { pitch: DiagramPitch }) {
-  const { name, symbol } = displayPitchType(pitch.type)
-  return <span className="zone-marker-badge" title={`${pitch.order}球目 · ${name}`}>
-    {pitch.order}{symbol && <span className="zone-marker-type">{symbol}</span>}
-  </span>
+// These are the silhouettes of the same symbols shown on the pitch type buttons.
+const triangles: Record<string, { points: string; center: [number, number] } | undefined> = {
+  '◢': { points: '0,100 100,0 100,100', center: [67, 67] },
+  '◀': { points: '0,50 100,0 100,100', center: [67, 50] },
+  '▼': { points: '0,0 100,0 50,100', center: [50, 33] },
 }
 
-export function StrikeZone({ location, pitches, onSelect }: {
-  location?: PitchLocation; pitches: DiagramPitch[]; onSelect: (location: PitchLocation) => void
+function PitchBadge({ pitch, tone }: { pitch: DiagramPitch; tone: MarkerTone }) {
+  const { name, symbol } = displayPitchType(pitch.type)
+  const triangle = symbol && Object.hasOwn(triangles, symbol) ? triangles[symbol] : undefined
+  const [x, y] = triangle?.center ?? [50, 50]
+  const digits = String(pitch.order).length
+  const fontSize = Math.min(47, (triangle ? 82 : 110) / digits)
+  return <svg className="zone-marker-badge" viewBox="0 0 100 100" data-symbol={symbol} data-tone={tone} role="img"
+    aria-label={`${pitch.order}球目 · ${name}`}>
+    {triangle ? <polygon className="zone-marker-symbol" points={triangle.points} />
+      : symbol === '●' ? <circle className="zone-marker-symbol" cx="50" cy="50" r="50" />
+        : symbol && <text className="zone-marker-symbol" x="50" y="50" fontSize="100"
+          textAnchor="middle" dominantBaseline="central">{symbol}</text>}
+    <text className="zone-marker-number" data-number-only={!symbol || undefined} x={x} y={y} fontSize={fontSize}
+      textAnchor="middle" dominantBaseline="central">{pitch.order}</text>
+  </svg>
+}
+
+export function StrikeZone({ location, pitches, plateResult, onSelect }: {
+  location?: PitchLocation; pitches: DiagramPitch[]; plateResult?: PlateAppearance['result']
+  onSelect: (location: PitchLocation) => void
 }) {
   const selected = location && pitchPoint(location)
   const markers = pitchMarkers(pitches)
   const overflow = markers.filter(marker => !marker.label)
+  // The log can be partial. Only a single recorded batted ball at the end
+  // of the sequence can be associated with an explicit batted-out result.
+  const batted = pitches.filter(isBattedPitch)
+  const finalPitch = markers.at(-1)?.pitch
+  const outPitch = explicitBattedOuts.has(plateResult) && batted.length === 1 &&
+    finalPitch === batted[0] && finalPitch.result !== 'hit' ? finalPitch : undefined
 
   function select(point: FieldPoint) {
     onSelect({ zone: 'point', ...point })
@@ -118,14 +154,15 @@ export function StrikeZone({ location, pitches, onSelect }: {
       </svg>
       {markers.map(({ pitch, label }) => label && <span key={pitch.id} className="zone-marker"
         aria-hidden="true" data-pitch-order={pitch.order} style={{ left: label.x * 100 + '%', top: label.y * 100 + '%' }}>
-        <PitchBadge pitch={pitch} />
+        <PitchBadge pitch={pitch} tone={markerTone(pitch, outPitch)} />
       </span>)}
       {selected && <span className="zone-selection" aria-hidden="true"
         style={{ left: selected.x * 100 + '%', top: selected.y * 100 + '%' }} />}
     </button>
     {overflow.length > 0 && <div className="zone-marker-overflow" aria-label="図に収まらない投球">
-      {overflow.map(({ pitch }) => <PitchBadge key={pitch.id} pitch={pitch} />)}
+      {overflow.map(({ pitch }) => <PitchBadge key={pitch.id} pitch={pitch} tone={markerTone(pitch, outPitch)} />)}
     </div>}
+    <p className="hint">黄：ストライク · 緑：ボール · 赤：打球アウト · 灰：その他・判定不可</p>
     <p className="hint" id="strike-grid-help">枠の内外をタップできます。キーボードでは矢印で移動、Shift＋矢印で微調整できます。</p>
   </figure>
 }

@@ -23,10 +23,28 @@ test('捕手視点の3×3補助線と同一点の投球番号・球種を表示�
   expect(Number(html.match(/data-pitch-order="3" cx="([^"]+)/)?.[1])).toBeCloseTo(10.1)
   const positions = Array.from(html.matchAll(/class="zone-marker"[^>]+style="([^"]+)"/g), match => match[1])
   expect(new Set(positions).size).toBe(3)
-  expect(html).toContain('1<span class="zone-marker-type">●</span>')
-  expect(html).toContain('2<span class="zone-marker-type">◢</span>')
-  expect(html).toContain('3<span class="zone-marker-type">▼</span>')
+  for (const [order, symbol] of [[1, '●'], [2, '◢'], [3, '▼']] as const) {
+    expect(html).toMatch(new RegExp(`data-symbol="${symbol}"[^>]*aria-label="${order}球目[^>]*>[\\s\\S]*?<text class="zone-marker-number"[^>]*>${order}</text>`))
+  }
   expect(legacy).toEqual({ zone: 'outside', side: 'highLeft' })
+})
+
+test('明示ストライクとボールを色分けし、打球アウトは対応する最終投球だけを赤にする', () => {
+  const location = { zone: 'point', x: .5, y: .5 } as const
+  const results = ['calledStrike', 'swingingStrike', 'ball', 'foul', 'foulBunt', 'hitByPitch', 'inPlayNonHit'] as const
+  const pitches = results.map((result, i) => ({ id: 'p-' + i, order: i + 1, type: initialPitchTypes[0], result, location }))
+  const tones = (rows: typeof pitches, result?: PlateAppearance['result']) =>
+    Array.from(renderToStaticMarkup(<StrikeZone pitches={rows} plateResult={result} onSelect={vi.fn()} />)
+      .matchAll(/data-tone="([^"]+)"/g), match => match[1])
+  expect(tones(pitches, 'groundOut')).toEqual(['strike', 'strike', 'ball', 'neutral', 'neutral', 'neutral', 'out'])
+  expect(tones(pitches, 'reachedOnError').at(-1)).toBe('neutral')
+  expect(tones(pitches, 'fieldersChoice').at(-1)).toBe('neutral')
+  expect(tones(pitches, 'sacrificeFly').at(-1)).toBe('neutral')
+  expect(tones(pitches).at(-1)).toBe('neutral')
+  expect(tones(pitches.slice(0, 2), 'strikeoutSwinging')).toEqual(['strike', 'strike'])
+  expect(tones([...pitches, { ...pitches[0], id: 'next', order: 8 }], 'groundOut').at(-2)).toBe('neutral')
+  expect(tones([...pitches, { ...pitches[6], id: 'ambiguous', order: 8 }], 'groundOut').slice(-2))
+    .toEqual(['neutral', 'neutral'])
 })
 
 test('旧ストレートは原本を保ちつつ標準の球種・記号で表示する', () => {

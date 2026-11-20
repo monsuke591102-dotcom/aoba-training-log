@@ -254,12 +254,20 @@
 .zone-anchors circle { fill: #fff; stroke: #102137; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .zone-marker, .zone-selection { position: absolute; pointer-events: none; transform: translate(-50%, -50%); }
 .zone-selection { width: 16px; height: 16px; border: 2px solid #ffd27b; border-radius: 50%; }
-.zone-marker-badge {
-  display: inline-block; white-space: nowrap; padding: 1px 3px; border-radius: 4px;
-  background: #14263b; border: 1px solid #e6edf4; color: #f7fbff; font-size: .75rem; line-height: 1.2;
+/* The zone spans 60% of the diagram: 7.5% is 37.5% of one guide cell. */
+.zone-marker { width: 7.5%; aspect-ratio: 1; }
+.zone-marker-badge { display: block; width: 100%; height: 100%; color: #a9b9c9; }
+.zone-marker-badge[data-tone="strike"] { color: #ffda59; }
+.zone-marker-badge[data-tone="ball"] { color: #65de91; }
+.zone-marker-badge[data-tone="out"] { color: #ff8585; }
+.zone-marker-symbol { fill: currentColor; }
+.zone-marker-number {
+  fill: #09182b; stroke: currentColor; stroke-width: 4; paint-order: stroke fill;
+  stroke-linejoin: round; font-weight: 800; font-variant-numeric: tabular-nums;
 }
-.zone-marker-type { margin-inline-start: 2px; }
-.zone-marker-overflow { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.zone-marker-number[data-number-only] { fill: currentColor; stroke: none; }
+.zone-marker-overflow { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.zone-marker-overflow .zone-marker-badge { width: 1.75rem; height: 1.75rem; }
 .batting-choices { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .batting-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .count-dot { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; border-radius: 50%; color: #102137; font-weight: 800; }

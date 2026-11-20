@@ -149,8 +149,8 @@ export default function PlanManagement({ data, commit, back, read }: {
         <button type="button" className="action" onClick={() => setDraft({ ...draft, items: [...draft.items, {
           id: crypto.randomUUID(), name: '', schedule: 'weekdays', weekdays: [], note: '', condition: '',
         }] })}>種目を追加</button>
-        <details><summary>新しい記録メニューを候補に追加</summary>
-          <NewPlanMenu add={menu => setPendingMenus([...pendingMenus, { ...menu, id: crypto.randomUUID() }])} /></details>
+        {confirmingImport && <details><summary>新しい記録メニューを候補に追加</summary>
+          <NewPlanMenu add={menu => setPendingMenus([...pendingMenus, { ...menu, id: crypto.randomUUID() }])} /></details>}
         {!confirmingImport && <div className="form-actions">
           <button type="button" className="action filled" onClick={save}>計画を保存</button>
           <button type="button" className="action" onClick={cancelDraft}>キャンセル</button>

@@ -12,8 +12,9 @@ const draft: RoutineDraftItem = {
 test('新規計画では既存の5分類を順番どおり閉じ、分類内のメニュー順も維持する', () => {
   const change = vi.fn()
   const html = renderToStaticMarkup(<RoutineFields item={draft} menus={menus} change={change} />)
-  const groups = [...html.matchAll(/<details class="menu-group"><summary><span>([^<]+)/g)]
+  const groups = [...html.matchAll(/<details class="menu-group" data-menu-category="([^"]+)"><summary>/g)]
   expect(groups.map(match => match[1])).toEqual(['打撃', '守備', '走塁', '体づくり', 'その他'])
+  expect(html.match(/class="menu-category-icon" aria-hidden="true"/g)).toHaveLength(5)
   expect(html).toMatch(/素振り（回）[\s\S]*ティーバッティング（球）[\s\S]*トスバッティング（球）/)
   expect(html).toContain('選択中：なし')
   expect(change).not.toHaveBeenCalled()
@@ -24,9 +25,16 @@ test('閉じた分類の中でも既存の非表示メニューと数量目標�
   const hidden = menus.map(menu => menu.id === 'swing' ? { ...menu, enabled: false } : menu)
   const html = renderToStaticMarkup(<RoutineFields item={item} menus={hidden} change={vi.fn()} />)
   expect(html).toContain('選択中：素振り（回） · 非表示')
-  expect(html).toContain('<span>打撃</span><span>3種目 · 選択中</span>')
+  expect(html).toContain('打撃</span><span>3種目 · 選択中</span>')
   expect(html).toContain('aria-pressed="true"')
   expect(html).toContain('value="20"')
+})
+
+test('旧分類の既存メニューは未分類から引き続き選択・表示できる', () => {
+  const legacyMenu = { ...menus[0], category: '旧分類' as typeof menus[number]['category'] }
+  const html = renderToStaticMarkup(<RoutineFields item={{ ...draft, menuId: legacyMenu.id }} menus={[legacyMenu]} change={vi.fn()} />)
+  expect(html).toContain('data-menu-category="未分類"><summary><span class="menu-category-label">未分類</span><span>1種目 · 選択中</span>')
+  expect(html).toContain('aria-pressed="true"')
 })
 
 test('単位が一致しない既存の紐づけは、候補の選び直しを案内する', () => {

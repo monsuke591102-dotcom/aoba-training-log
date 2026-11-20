@@ -21,7 +21,7 @@ test('固定の分類順で全分類を閉じ、非表示メニューを件数�
     ['打撃', 3], ['守備', 5], ['走塁', 3], ['体づくり', 4], ['その他', 3],
   ])
   expect(html).toContain('aria-label="素振りを再表示"')
-  expect(html.match(/class="settings-menu-category-icon" aria-hidden="true"/g)).toHaveLength(5)
+  expect(html.match(/class="menu-category-icon" aria-hidden="true"/g)).toHaveLength(5)
   for (const [, category] of groups) {
     expect(html).toContain(`aria-label="${category}にメニュー追加"`)
   }
@@ -37,7 +37,7 @@ test('欠落・未知の分類値を持つ種目だけを末尾の未分類に�
   const html = renderSettings({ ...data, menus })
   const groups = [...html.matchAll(/data-menu-category="([^"]+)"/g)]
   expect(groups.at(-1)?.[1]).toBe('未分類')
-  expect(html).toContain('<span class="settings-menu-category">未分類</span><span>2種目</span>')
+  expect(html).toContain('<span class="menu-category-label">未分類</span><span>2種目</span>')
   expect(html).not.toContain('未分類にメニュー追加')
   expect(html).toContain('aria-label="分類値なしを編集"')
   expect(html).toContain('aria-label="未知の分類値を再表示"')

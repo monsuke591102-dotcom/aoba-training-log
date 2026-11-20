@@ -139,8 +139,8 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   const pitchPending = Boolean(pitch.id || pitch.type || pitch.location || pitch.result)
   const update = (patch: Partial<PlateAppearance>) => setPlate(current => ({ ...current, ...patch }))
 
-  function savePitch() {
-    const { id, location, result, type } = pitch
+  function savePitch(result?: Pitch['result']) {
+    const { id, location, type } = pitch
     if (!location || !result || !type) return
     const previous = pitches.find(row => row.id === id)
     const row: Pitch = { id: previous?.id ?? crypto.randomUUID(), order: previous?.order ?? nextOrder(pitches), location, result, type }
@@ -149,10 +149,16 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     setError('')
   }
 
+  function replacePitchHistory(rows: Pitch[]) {
+    update({ pitches: rows })
+    setPitch({})
+    setError('')
+  }
+
   async function save(status: PlateAppearance['status']) {
     if (pending.current) return
     setError('')
-    if (pitchPending) { setTab(0); setError('入力中の投球を追加・更新するか、選択を取り消してください。'); return }
+    if (pitchPending) { setTab(0); setError('入力中の投球は、投球結果を押して記録するか、選択を取り消してください。'); return }
     if ((balls === '') !== (strikes === '')) { setTab(0); setError('最終投球前カウントはBとSを両方指定してください。'); return }
     if (status === 'complete' && !plate.result) { setTab(1); setError(missingResult); return }
     const resultError = pitchResultError(plate)
@@ -227,14 +233,20 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
               setExtraPitch('')
             }}>この球種を選択</button>
           </details>
-          <fieldset className="batting-choices"><legend>投球結果</legend>
+          <p className="hint" id={tabId + '-pitch-result-hint'}>球種と位置を選び、投球結果を押すと1球を記録します。</p>
+          <fieldset className="batting-choices" aria-describedby={tabId + '-pitch-result-hint'}><legend>投球結果</legend>
             {Object.entries(pitchLabels).filter(([value]) => value !== 'inPlay' || editedPitch?.result === 'inPlay').map(([value, label]) => <button key={value} type="button" className="action"
-              aria-pressed={pitch.result === value}
-              onClick={() => setPitch(current => ({ ...current, result: value as Pitch['result'] }))}>{label}</button>)}
+              disabled={!pitch.location || !pitch.type} aria-pressed={pitch.result === value}
+              onClick={() => savePitch(value as Pitch['result'])}>{label}</button>)}
           </fieldset>
           <div className="form-actions">
-            <button type="button" className="action filled" disabled={!pitch.location || !pitch.type || !pitch.result}
-              onClick={savePitch}>{pitch.id ? '投球を更新' : '投球を追加'}</button>
+            <button type="button" className="action" disabled={!pitches.length}
+              onClick={() => replacePitchHistory(pitches.slice(0, -1))}>投球を取り消し</button>
+            <button type="button" className="action danger" disabled={!pitches.length} onClick={() => {
+              if (window.confirm('この打席の投球履歴をすべて削除しますか？')) replacePitchHistory([])
+            }}>全てリセット</button>
+            {editedPitch && <button type="button" className="action filled" disabled={!pitch.location || !pitch.type}
+              onClick={() => savePitch(pitch.result)}>投球を更新</button>}
             {pitchPending && <button type="button" className="action" onClick={() => { setPitch({}); setError('') }}>投球の選択を取り消す</button>}
           </div>
           <p className="hint" role="status">{pitch.location ? '投球位置：' + pitchLocationLabel(pitch.location) : '投球は省略できます。'}</p>

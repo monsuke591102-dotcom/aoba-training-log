@@ -38,7 +38,7 @@ $$;
 create function training_log_private.quantity(value jsonb, unit text)
 returns boolean language sql immutable set search_path = pg_catalog as $$
   select case when jsonb_typeof(value) = 'number' then
-    (value::numeric)::double precision > 0 and value::numeric <= 9007199254740991
+    (value::numeric)::double precision > 0 and (value::numeric)::double precision <= 9007199254740991
       and (unit = '分' or trunc((value::numeric)::double precision) = (value::numeric)::double precision)
     else false end;
 $$;

@@ -1,9 +1,11 @@
 import migration from '../supabase/migrations/202611180001_training_log_snapshots.sql?raw'
 import writeMigration from '../supabase/migrations/202611200001_training_log_snapshot_write_v2.sql?raw'
+import rejectMatchDetailsMigration from '../supabase/migrations/202611200002_reject_local_match_details.sql?raw'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { initialData } from './initialData'
 import { decodeBackup, encodeBackup, validateData } from './backup'
+import { emptyMatchDetails, requireCloudCompatibleMatchData } from './matchDetails'
 
 const a = '00000000-0000-4000-8000-000000000001'
 const b = '00000000-0000-4000-8000-000000000002'
@@ -83,6 +85,7 @@ describe('新版RPC', () => {
     await db.exec('reset role')
     await db.query('insert into auth.users values ($1), ($2)', [c, parityUser])
     await db.exec(writeMigration)
+    await db.exec(rejectMatchDetailsMigration)
     await signIn(parityUser)
     await write(null)
     await write(1)
@@ -148,7 +151,7 @@ describe('新版RPC', () => {
     await expect(write(null)).rejects.toMatchObject({ code: '42501' })
   })
 
-  const day = '2026-11-20'
+  const day = '2026-11-20' as const
   const time = day + 'T12:00:00.000Z'
   const match = { id: 'match-a', date: day, createdAt: time, updatedAt: time, good: '声かけ', improve: '' }
   const record = { id: 'record-a', date: day, kind: '自主練', menuId: 'swing', menuName: '素振り',
@@ -156,6 +159,37 @@ describe('新版RPC', () => {
   const routine = { id: 'plan-a', startsOn: day, items: [{ id: 'item-a', name: '素振り', menuId: 'swing',
     weekdays: [5], schedule: 'weekdays', note: '', condition: '' }] }
   const json = (patch: Record<string, unknown>) => JSON.stringify({ ...initialData(), ...patch })
+
+  test('端末内専用の試合詳細を作成・更新とも拒否し、保存内容とrevisionを維持する', async () => {
+    await signIn(parityUser)
+    const read = async () => (await db.query(`select data, revision, updated_at from ${table}`)).rows
+    const before = await read()
+    const details = { ...emptyMatchDetails(), plateAppearances: [
+      { id: 'pa', order: 1, status: 'complete', result: 'double', rbi: 2 },
+    ] }
+    const snapshot = json({ matches: [match, { ...match, id: 'detail-match', details }] })
+    const parsed = JSON.parse(snapshot)
+    validateData(parsed)
+    expect(() => requireCloudCompatibleMatchData(parsed)).toThrow('端末内専用')
+    for (const value of [details, null, {}, [], 0, false, '']) {
+      const forbidden = json({ matches: [match, { ...match, id: 'detail-match', details: value }] })
+      await expect(write(2, forbidden)).rejects.toMatchObject({ code: '22023' })
+      expect(await read()).toEqual(before)
+    }
+    // A new owner has no row. A conflict on an existing row cannot mask acceptance.
+    const fresh = '00000000-0000-4000-8000-000000000005'
+    await db.exec('reset role')
+    await db.query('insert into auth.users values ($1)', [fresh])
+    await signIn(fresh)
+    await expect(write(null, snapshot)).rejects.toMatchObject({ code: '22023' })
+    expect(await read()).toEqual([])
+    const legacy = decodeBackup(encodeBackup({ ...initialData(), matches: [match] })).data
+    expect((await write(null, JSON.stringify(legacy))).rows).toEqual([{ status: 'written', revision: 1 }])
+    expect((await write(1, json({ matches: [{ ...match, improve: '次回の目標' }] }))).rows)
+      .toEqual([{ status: 'written', revision: 2 }])
+    expect((await write(1)).rows).toEqual([{ status: 'conflict', revision: null }])
+  })
+
   const cases: { name: string; accepted: boolean; input: string }[] = [
     { name: 'schemaVersion 3の旧JSONバックアップ', accepted: true, input: JSON.stringify(decodeBackup(JSON.stringify({
       appId: 'aoba-training-log', backupVersion: 1, dataVersion: 3, createdAt: time, data: initialData(),

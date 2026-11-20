@@ -98,6 +98,7 @@ function pitchMarkers(pitches: DiagramPitch[]) {
 
 // These are the silhouettes of the same symbols shown on the pitch type buttons.
 const triangles: Record<string, { points: string; center: [number, number] } | undefined> = {
+  '◣': { points: '0,0 100,100 0,100', center: [33, 67] },
   '◢': { points: '0,100 100,0 100,100', center: [67, 67] },
   '◀': { points: '0,50 100,0 100,100', center: [67, 50] },
   '▶': { points: '0,0 100,50 0,100', center: [33, 50] },

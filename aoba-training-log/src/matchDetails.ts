@@ -1,9 +1,10 @@
 import type { TrainingData } from './model'
 
 const straightPitchType = { id: 'fastball', name: 'ストレート', symbol: '●' } as const
+const curvePitchType = { id: 'curve', name: 'カーブ', symbol: '◣' } as const
 export const initialPitchTypes = [
   straightPitchType,
-  { id: 'curve', name: 'カーブ', symbol: '◢' },
+  curvePitchType,
   { id: 'slider', name: 'スライダー', symbol: '◀' },
   { id: 'splitter', name: 'スプリット', symbol: '▼' },
   { id: 'shoot', name: 'シュート', symbol: '▶' },
@@ -43,6 +44,7 @@ type Count = { balls: number; strikes: number }
 export type PitchTypeSnapshot = { id: string; name: string; symbol?: string }
 // The display alias does not migrate stored pitch snapshots.
 export function displayPitchType(type: PitchTypeSnapshot): PitchTypeSnapshot {
+  if (type.id === 'curve' && type.symbol === '◢') return { ...type, symbol: curvePitchType.symbol }
   return type.id === 'fastball-fast' || type.id === 'fastball-slow' ? straightPitchType : type
 }
 

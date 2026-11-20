@@ -23,7 +23,7 @@ test('捕手視点の3×3補助線と同一点の投球番号・球種を表示�
   expect(Number(html.match(/data-pitch-order="3" cx="([^"]+)/)?.[1])).toBeCloseTo(10.1)
   const positions = Array.from(html.matchAll(/class="zone-marker"[^>]+style="([^"]+)"/g), match => match[1])
   expect(new Set(positions).size).toBe(3)
-  for (const [order, symbol] of [[1, '●'], [2, '◢'], [3, '▼']] as const) {
+  for (const [order, symbol] of [[1, '●'], [2, '◣'], [3, '▼']] as const) {
     expect(html).toMatch(new RegExp(`data-symbol="${symbol}"[^>]*aria-label="${order}球目[^>]*>[\\s\\S]*?<text class="zone-marker-number"[^>]*>${order}</text>`))
   }
   expect(legacy).toEqual({ zone: 'outside', side: 'highLeft' })
@@ -92,6 +92,22 @@ test('共通のシュート定義から右向き三角形を描き、その重�
   expect(html).toContain('<polygon class="zone-marker-symbol" points="0,0 100,50 0,100"')
   expect(html).toMatch(/<text class="zone-marker-number" x="33" y="50"[^>]*text-anchor="middle"[^>]*>12<\/text>/)
   expect(html).toContain('cx="100" cy="100"')
+})
+
+test('保存済みのカーブは元のスナップショットを保ち、選択肢と同じ左下の三角形で表示する', () => {
+  const legacy = { id: 'curve', name: 'カーブ', symbol: '◢' }
+  const curve = initialPitchTypes.find(type => type.id === 'curve')
+  expect(curve?.symbol).toBe('◣')
+  expect(displayPitchType(legacy)).toEqual(curve)
+  const html = renderToStaticMarkup(<StrikeZone onSelect={vi.fn()} plateResult="single" pitches={[
+    { id: 'curve-pitch', order: 1, type: legacy, result: 'hit', location: { zone: 'point', x: .5, y: .5 } },
+  ]} />)
+  expect(html).toContain('data-symbol="◣" data-tone="hit"')
+  expect(html).toContain('<polygon class="zone-marker-symbol" points="0,0 100,100 0,100"')
+  expect(html).toMatch(/<text class="zone-marker-number" x="33" y="67"[^>]*>1<\/text>/)
+  expect(legacy.symbol).toBe('◢')
+  const custom = { ...legacy, id: 'custom' }
+  expect(displayPitchType(custom)).toBe(custom)
 })
 
 test('旧ストレートは原本を保ちつつ標準の球種・記号で表示する', () => {

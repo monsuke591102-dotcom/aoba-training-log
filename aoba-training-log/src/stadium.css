@@ -260,7 +260,7 @@
 .zone-marker-badge[data-tone="strike"] { color: #ffda59; }
 .zone-marker-badge[data-tone="ball"] { color: #65de91; }
 .zone-marker-badge[data-tone="out"] { color: #ff8585; }
-.zone-marker-badge[data-tone="hit"] { color: #82baff; }
+.zone-marker-badge[data-tone="hit"] { color: #4098ff; }
 .zone-marker-symbol { fill: currentColor; }
 .zone-marker-number {
   fill: #09182b; stroke: currentColor; stroke-width: 4; paint-order: stroke fill;

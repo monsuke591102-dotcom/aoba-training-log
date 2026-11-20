@@ -12,7 +12,7 @@ const plays: Record<NonNullable<FieldingPlay['playType']>, string> = {
   force: 'フォースプレー', cover: 'ベースカバー', other: 'その他',
 }
 const credits = [['putout', '刺殺'], ['assist', '補殺'], ['error', '失策']] as const
-const skills = [['catching', '捕球'], ['throwing', '送球'], ['judgment', '判断'], ['baseCover', 'ベースカバー'], ['other', 'その他']] as const
+export const fieldingSkills = [['catching', '捕球'], ['throwing', '送球'], ['judgment', '判断'], ['baseCover', 'ベースカバー'], ['other', 'その他']] as const
 const reflections = [['feel', '良かったこと'], ['reflection', '反省点'], ['improvement', '次に意識すること']] as const
 type Mode = { kind: 'play'; value: FieldingPlay } | { kind: 'position'; value: PositionChange }
 const nextOrder = (items: readonly { order: number }[]) => items.reduce((max, row) => Math.max(max, row.order), 0) + 1
@@ -170,7 +170,7 @@ export function FieldingEditor({ target, details, commit, onClose }: {
         <details className="batting-extra">
           <summary>育成観察（任意）{draft.development?.length ? ` · ${draft.development.length}件` : ''}</summary>
           <div className="fields batting-result-fields">
-          {skills.map(([skill, label]) => <label key={skill}>{label}の観察<textarea rows={2}
+          {fieldingSkills.map(([skill, label]) => <label key={skill}>{label}の観察<textarea rows={2}
             value={draft.development?.filter(row => row.skill === skill).map(row => row.note).join('\n') ?? ''}
             onChange={event => {
               const note = event.target.value

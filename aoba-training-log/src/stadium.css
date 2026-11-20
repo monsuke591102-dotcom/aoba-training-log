@@ -296,6 +296,9 @@
 .batting-stat-rates dd, .batting-stat-counts dd { font-variant-numeric: tabular-nums; }
 .batting-stat-help summary { min-height: 44px; align-content: center; cursor: pointer; }
 .batting-stat-help ul { padding-inline-start: 1.25em; color: #c5d8ef; }
+.running-fielding-stats .batting-stat-rates { grid-template-columns: minmax(0, 1fr); }
+.fielding-observations { margin-block: 16px 8px; padding-top: 4px; border-top: 1px solid #45648a; overflow-wrap: anywhere; }
+.fielding-observations .entry-note { white-space: pre-wrap; }
 .batting-stat-map { cursor: default; }
 .batting-stat-hits { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; list-style: none; }
 .batting-stat-hits [aria-pressed="true"] { border-color: #ffd27b; color: #ffefbd; font-weight: 700; }

@@ -12,6 +12,7 @@ import { BattingEditor } from './BattingEditor'
 import { BaserunningEditor } from './BaserunningEditor'
 import { FieldingEditor } from './FieldingEditor'
 import { BattingStatsView } from './BattingStatsView'
+import { RunningFieldingStatsView, type RunningFieldingKind } from './RunningFieldingStatsView'
 import { battingGames, isMatchHistoryEntry, recordHistory } from './recordHistory'
 
 export function rejectInvalidNumber(form: HTMLFormElement) {
@@ -103,7 +104,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
   const [batting, setBatting] = useState<string | null>(null)
   const [running, setRunning] = useState<string | null>(null)
   const [fielding, setFielding] = useState<string | null>(null)
-  const [battingStats, setBattingStats] = useState<string>()
+  const [statsView, setStatsView] = useState<{ id: string; kind: 'batting' | RunningFieldingKind }>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const editMatches = canEditMatches()
@@ -148,16 +149,25 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       target={fieldingEntry.record ? { recordId: fieldingEntry.record.id } : { matchId: fieldingEntry.match!.id }}
       details={fieldingEntry.match?.details} />
   }
-  if (editMatches && battingStats) {
+  if (editMatches && statsView) {
     const games = battingGames(history)
-    const game = games.find(row => row.id === battingStats)
-    if (battingStats === 'total' || game) return <BattingStatsView games={games} game={game}
-      onClose={() => setBattingStats(undefined)} />
+    const game = games.find(row => row.id === statsView.id)
+    if (statsView.id === 'total' || game) {
+      const onClose = () => setStatsView(undefined)
+      return statsView.kind === 'batting'
+        ? <BattingStatsView games={games} game={game} onClose={onClose} />
+        : <RunningFieldingStatsView kind={statsView.kind} games={games} game={game} onClose={onClose} />
+    }
   }
 
-  function openBattingStats(id: string) {
-    setBattingStats(id)
-    window.scrollTo(0, 0)
+  function statsLinks(id: string) {
+    return <div className="form-actions">
+      {([['batting', '打撃成績'], ['running', '走塁成績'], ['fielding', '守備成績']] as const).map(([kind, label]) =>
+        <button key={kind} type="button" className="action" onClick={() => {
+          setStatsView({ id, kind })
+          window.scrollTo(0, 0)
+        }}>{id === 'total' ? '通算' + label : label}</button>)}
+    </div>
   }
 
   return (
@@ -170,8 +180,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       </section>
       <section className="card">
         <h2>練習履歴</h2>
-        {editMatches && editing === null && history.some(isMatchHistoryEntry) &&
-          <button type="button" className="action" onClick={() => openBattingStats('total')}>通算打撃成績</button>}
+        {editMatches && editing === null && history.some(isMatchHistoryEntry) && statsLinks('total')}
         {history.length === 0 && <p className="hint">まだ記録がありません。</p>}
         <ul className="entries">
           {history.map(({ id, record, match, date }) => (
@@ -184,8 +193,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
               {record?.note && <p className="entry-note">{record.note}</p>}
               {match?.good && <p className="entry-note"><strong>良かったこと</strong> {match.good}</p>}
               {match?.improve && <p className="entry-note"><strong>改善したいこと</strong> {match.improve}</p>}
-              {editMatches && editing === null && deleting !== id && (record?.kind === '試合' || (!record && match)) &&
-                <button type="button" className="action" onClick={() => openBattingStats(id)}>打撃成績</button>}
+              {editMatches && editing === null && deleting !== id && (record?.kind === '試合' || (!record && match)) && statsLinks(id)}
               {deleting === id
                 ? <div className="confirmation" role="group" aria-label="削除の確認">
                     <p>この練習記録を削除しますか？</p>

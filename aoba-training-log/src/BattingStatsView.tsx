@@ -14,7 +14,7 @@ const counts = [
   ['sh', '犠打'], ['sf', '犠飛'], ['reachedOnError', '失策出塁'], ['fieldersChoice', '野手選択'],
 ] as const
 
-function formatRate(value: number | null) {
+export function formatRate(value: number | null) {
   return value === null ? '—' : value.toFixed(3).replace(/^0\./, '.')
 }
 

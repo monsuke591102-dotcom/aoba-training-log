@@ -182,7 +182,7 @@
 [data-screen="カレンダー"] .day-section {
   border-color: #436692; background: #0e2446;
 }
-[data-screen="設定"] .menu-group h3 { background: #1e4169; }
+[data-screen="設定"] .menu-group > summary { background: #1e4169; }
 [data-screen="成長"] .card { border-top-color: #76a6dd; }
 .entries li, .day-section { border-color: #43618a; }
 .fields input:not([type="checkbox"]), .fields select, textarea {

@@ -11,7 +11,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:focus": "node --test scripts/settings-focus.browser.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",

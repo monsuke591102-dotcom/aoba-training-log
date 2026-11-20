@@ -171,7 +171,7 @@ button:disabled { opacity: .6; }
 .calendar-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 12px; font-size: .8rem; }
 .calendar-legend li { display: flex; align-items: center; gap: 4px; }
 .day-section { margin-top: 13px; padding-top: 8px; border-top: 1px solid #dae4de; }
-.day-section h3, .menu-group h3 { font-size: 1rem; }
+.day-section h3 { font-size: 1rem; }
 .plan-menus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
 .plan-menus input { flex: none; }
 .plan-menus label { overflow-wrap: anywhere; }
@@ -399,7 +399,22 @@ button:disabled { opacity: .6; }
 [data-screen="カレンダー"] .day-section { background: #f8faf7; padding: 8px; border-radius: 8px; }
 [data-screen="成長"] .card { border-top: 2px solid #85a28f; }
 [data-screen="設定"] .card > .section-heading { margin-top: 0; }
-[data-screen="設定"] .menu-group h3 { padding: 4px 8px; border-radius: 5px; background: #e8efe5; }
+.menu-group > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  background: #e8efe5;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  list-style: none;
+  cursor: pointer;
+}
+.menu-group > summary::-webkit-details-marker { display: none; }
+.menu-group[open] > summary > svg { transform: rotate(180deg); }
 
 .bottom-nav {
   z-index: 4; background: #10243a; border-top: 1px solid #b9974a;

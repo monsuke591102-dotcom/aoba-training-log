@@ -1,6 +1,6 @@
-import { Target } from 'lucide-react'
+import { ChevronDown, Target } from 'lucide-react'
 import { ScreenTitle } from './ScreenTitle'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { localDate } from './dates'
 import { categories, units } from './initialData'
@@ -9,7 +9,12 @@ import type { Goal, Menu, TrainingData } from './model'
 import { errorMessage, rejectInvalidNumber, type Commit } from './Records'
 import { currentGoal, deleteMenu, menuStats, saveGoals, saveMenu, setMenuEnabled, weekDates } from './training'
 
-function MenuEditor({ menu, data, commit, close, create = false }: { menu: Menu; data: TrainingData; commit: Commit; close: () => void; create?: boolean }) {
+const unclassified = '未分類'
+const menuCategory = (menu: Menu) => categories.includes(menu.category) ? menu.category : unclassified
+
+function MenuEditor({ menu, data, commit, close, onSaved, create = false }: {
+  menu: Menu; data: TrainingData; commit: Commit; close: () => void; onSaved: (menu: Menu) => void; create?: boolean
+}) {
   const [draft, setDraft] = useState(menu)
   const savedDaily = currentGoal(data.goals, 'daily-menu', localDate(new Date()), menu.id)
   const initialDaily = String(savedDaily?.unit === menu.unit ? savedDaily.amount ?? '' : '')
@@ -25,7 +30,7 @@ function MenuEditor({ menu, data, commit, close, create = false }: { menu: Menu;
     try {
       rejectInvalidNumber(event.currentTarget)
       await commit(data => saveMenu(data, draft, target, new Date(), daily, create))
-      close()
+      onSaved(draft)
     } catch (error) {
       setError(errorMessage(error))
     } finally {
@@ -37,7 +42,10 @@ function MenuEditor({ menu, data, commit, close, create = false }: { menu: Menu;
     <form className="editor" noValidate onSubmit={submit}>
       <fieldset className="fields" disabled={busy}>
         <label>メニュー名<input required value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /></label>
-        <label>カテゴリ<select value={draft.category} onChange={event => setDraft({ ...draft, category: event.target.value as Menu['category'] })}>
+        <label>カテゴリ<select value={categories.includes(draft.category) ? draft.category : ''} onChange={event => setDraft({
+          ...draft, category: event.target.value ? event.target.value as Menu['category'] : menu.category,
+        })}>
+          {menuCategory(menu) === unclassified && <option value="">{unclassified}</option>}
           {categories.map(category => <option key={category}>{category}</option>)}
         </select></label>
         <label>記録単位<select value={draft.unit} onChange={event => {
@@ -72,6 +80,27 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
   const [days, setDays] = useState(String(currentGoal(data.goals, 'weekly', date)?.days ?? ''))
   const [skill, setSkill] = useState(currentGoal(data.goals, 'skill', date)?.text ?? '')
   const [menuId, selectMenu] = useState<string | null>(null)
+  const menuGroups = useRef<HTMLDivElement>(null)
+  const groupNames = data.menus.some(menu => menuCategory(menu) === unclassified) ? [...categories, unclassified] : categories
+
+  function openAllMenuGroups(open: boolean) {
+    menuGroups.current?.querySelectorAll<HTMLDetailsElement>('details[data-menu-category]').forEach(group => { group.open = open })
+  }
+
+  function closeAllMenuGroups(button: HTMLButtonElement) {
+    if (menuGroups.current?.querySelector('details[open]:focus-within')) button.focus()
+    openAllMenuGroups(false)
+  }
+
+  function showSavedMenu(menu: Menu) {
+    const group = menuGroups.current?.querySelector<HTMLDetailsElement>(`details[data-menu-category="${menuCategory(menu)}"]`)
+    if (group) {
+      group.open = true
+      group.querySelector('summary')?.focus()
+    }
+    selectMenu(null)
+    setNewMenu(undefined)
+  }
   const [newMenu, setNewMenu] = useState<Menu>()
   const [changingMenu, setChangingMenu] = useState<string>()
   const [deletingMenu, setDeletingMenu] = useState<Menu>()
@@ -149,14 +178,23 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
             setNewMenu({ id: crypto.randomUUID(), name: '', category: 'その他', unit: '回', enabled: true })
           }}>メニューを追加</button>}
         </div>
-        {newMenu && <MenuEditor key={newMenu.id} menu={newMenu} data={data} commit={commit} create close={() => setNewMenu(undefined)} />}
+        {newMenu && <MenuEditor key={newMenu.id} menu={newMenu} data={data} commit={commit} create close={() => setNewMenu(undefined)} onSaved={showSavedMenu} />}
         <p className="hint">週間目標は月〜日。同じ単位の記録で集計します。</p>
         {visibilityError && <p className="error" role="alert">{visibilityError}</p>}
-        {categories.map(category => (
-          <div className="menu-group" key={category}>
-            <h3>{category}</h3>
+        <div className="form-actions">
+          <button type="button" className="action" onClick={() => openAllMenuGroups(true)}>すべて開く</button>
+          <button type="button" className="action" onClick={event => closeAllMenuGroups(event.currentTarget)}>すべて閉じる</button>
+        </div>
+        <div ref={menuGroups}>{groupNames.map(category => {
+          const menus = data.menus.filter(menu => menuCategory(menu) === category)
+          return <details className="menu-group" key={category} data-menu-category={category}>
+            <summary onClick={({ currentTarget: summary }) => {
+              const group = summary.closest('details')
+              const focused = summary.ownerDocument.activeElement
+              if (group?.open && group.contains(focused) && !summary.contains(focused)) summary.focus()
+            }}><span>{category}</span><span>{menus.length}種目</span><ChevronDown size={18} aria-hidden="true" /></summary>
             <ul className="entries">
-              {data.menus.filter(menu => menu.category === category).map(menu => {
+              {menus.map(menu => {
                 const stats = menuStats(data, menu, today)
                 const daily = currentGoal(data.goals, 'daily-menu', date, menu.id)
                 return (
@@ -175,7 +213,7 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
                           onClick={() => setDeletingMenu(undefined)}>キャンセル</button>
                       </div>
                     </div> : menuId === menu.id
-                      ? <MenuEditor menu={menu} data={data} commit={commit} close={() => selectMenu(null)} />
+                      ? <MenuEditor menu={menu} data={data} commit={commit} close={() => selectMenu(null)} onSaved={showSavedMenu} />
                       : <div className="form-actions">
                         <button className="action" disabled={changingMenu === menu.id} aria-label={menu.name + 'を編集'} onClick={() => { setNewMenu(undefined); selectMenu(menu.id) }}>編集</button>
                         <button className="action" disabled={changingMenu !== undefined}
@@ -188,8 +226,8 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
                 )
               })}
             </ul>
-          </div>
-        ))}
+          </details>
+        })}</div>
       </section>
       <section className="card">
         <h2>目標変更履歴</h2>

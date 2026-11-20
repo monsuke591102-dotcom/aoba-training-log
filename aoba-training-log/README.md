@@ -25,6 +25,22 @@ $env:VITE_BASE_PATH = "/aoba-training-log/"
 pnpm.cmd build
 ```
 
+## iPhoneでの試合記録の隔離検証
+
+配信にはNetlifyなどで作成した専用の静的HTTPSサイトを使います。本番と異なるホスト名を先に確定し、リポジトリやSupabaseをサイトに連携させず、検証用のビルド成果物だけをサイトのルートに配置します。配信先が未確定の間は次の例でローカルビルドだけを確認できます。`invalid` はiPhoneで接続するためのURLではありません。
+
+```powershell
+$env:VITE_MATCH_TEST_ORIGIN = 'https://aoba-match-test.invalid'
+$env:VITE_MATCH_TEST_BUILD = '4L8-test-01'
+pnpm.cmd exec vite build --mode match-test --outDir dist/match-test
+```
+
+- 実際の配信時は、承認後に `VITE_MATCH_TEST_ORIGIN` を確定したHTTPSオリジンに置き換えます。末尾スラッシュやパスは付けません。配信するのは `dist/match-test` の中身だけです。通常のPagesビルドは従来のコマンドを使用します。
+- iPhone 8と15 Pro Maxの両方で、Safariから検証用URLを開き、画面の「試合記録の検証環境」、ビルド識別子、クラウド接続未設定の表示を確認します。ホーム画面に追加したら「AOBA LOG 検証用」を起動します。
+- 「記録 → 詳細を入力」で「試合」を選び、メニューなしで、合成した「良かったこと」「改善したいこと」を入力します。同日に2件保存し、片方だけを編集・削除して、もう片方が残ることを確認します。
+- ホーム画面版を一度オンラインで開いた後、アプリを閉じて開き直し、記録が残ることを確認します。次に機内モードで開き直し、記録の閲覧・追加・編集と、オンラインに戻した後も内容が維持されることを確認します。
+- 「設定 → データ管理」から検証用JSONを「ファイル」に保存します。検証用アプリ内でそのファイルを選び、件数を確認して復元します。本番アカウントでログインしたり、本番のバックアップを復元したりする必要はありません。
+
 ## GitHub Pages での公開準備
 
 1. 公開の承認後、GitHub のユーザー名とリポジトリ名を確定します。リポジトリの **Settings → Pages → Build and deployment → Source** で **GitHub Actions** を選びます。

@@ -16,6 +16,7 @@ const draft: MatchDraft = { date: '2026-11-20', kind: '試合', menuId: '', amou
 
 beforeEach(() => {
   vi.stubGlobal('__LOCAL_MATCH_RECORDS__', true)
+  vi.stubGlobal('__MATCH_TEST_BUILD__', null)
   vi.stubGlobal('window', { location: { hostname: 'localhost' } })
 })
 afterEach(() => vi.unstubAllGlobals())
@@ -126,4 +127,20 @@ test('公開フラグOFFと非ループバックでは新機能の変更を拒�
   expect(form).toContain('メニューなしの試合')
   expect(form).not.toContain('良かったこと（任意）')
   expect(form).not.toContain('>編集</button>')
+})
+
+test('検証ビルドの試合書き込みは指定したセキュアオリジンに限定される', () => {
+  const origin = 'https://aoba-match-test.invalid'
+  vi.stubGlobal('__MATCH_TEST_BUILD__', { origin, build: 'test-build' })
+  vi.stubGlobal('__LOCAL_MATCH_RECORDS__', false)
+  vi.stubGlobal('window', { isSecureContext: true, location: { origin } })
+  const data = saveMatch(initialData(), draft, undefined, now)
+  const id = data.matches![0].id
+  expect(saveMatch(data, { ...draft, good: '検証で更新' }, { matchId: id }, now).matches?.[0].good).toBe('検証で更新')
+  expect(deleteMatch(data, id, false)).toEqual(initialData())
+  for (const [candidate, secure] of [[origin, false], [origin + ':444', true], ['https://other.invalid', true]] as const) {
+    vi.stubGlobal('window', { isSecureContext: secure, location: { origin: candidate } })
+    expect(() => saveMatch(initialData(), draft, undefined, now)).toThrow('無効')
+    expect(() => deleteMatch(data, id, false)).toThrow('無効')
+  }
 })

@@ -3,8 +3,10 @@ import type { MatchEntry, TrainingData } from './model'
 import { deleteRecord, InputError, saveRecord, type RecordDraft } from './training'
 
 export function canEditMatches() {
-  return __LOCAL_MATCH_RECORDS__ && typeof window !== 'undefined' &&
-    ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+  return __MATCH_TEST_BUILD__
+    ? typeof window !== 'undefined' && window.isSecureContext && window.location.origin === __MATCH_TEST_BUILD__.origin
+    : __LOCAL_MATCH_RECORDS__ && typeof window !== 'undefined' &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
 }
 
 export type MatchDraft = RecordDraft & { good: string; improve: string }

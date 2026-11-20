@@ -5,13 +5,17 @@ import type { Plugin } from 'vite'
 
 const pwaFiles = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png']
 
-export function offlineShell(): Plugin {
+export function offlineShell(matchTest = false): Plugin {
   let publicDir: string
   return {
     name: 'training-log-offline-shell',
     apply: 'build',
     enforce: 'post',
     configResolved(config) { publicDir = config.publicDir },
+    transformIndexHtml(html) {
+      return matchTest ? html.replace('content="AOBA LOG"', 'content="AOBA LOG 検証用"')
+        .replace('<title>AOBA TRAINING LOG</title>', '<title>AOBA LOG 検証用</title>') : html
+    },
     generateBundle(_options, bundle) {
       const output = Object.keys(bundle).filter(name => /\.(?:html|js|css)$/.test(name)).sort()
       if (!output.includes('index.html')) this.error('Offline shell needs the built index.html.')
@@ -20,7 +24,15 @@ export function offlineShell(): Plugin {
         const file = bundle[name]
         revision.update(name).update(file.type === 'chunk' ? file.code : file.source)
       }
-      for (const name of pwaFiles) revision.update(name).update(readFileSync(join(publicDir, name)))
+      for (const name of pwaFiles) {
+        let content = readFileSync(join(publicDir, name))
+        if (matchTest && name === 'manifest.webmanifest') {
+          const manifest = JSON.parse(content.toString('utf8'))
+          content = Buffer.from(JSON.stringify({ ...manifest, name: 'AOBA LOG 試合記録検証', short_name: 'AOBA LOG 検証用' }))
+          this.emitFile({ type: 'asset', fileName: name, source: content })
+        }
+        revision.update(name).update(content)
+      }
       const resources = ['index.html', ...output.filter(name => name !== 'index.html'), ...pwaFiles]
       const worker = `
 const scope = new URL(self.registration.scope)

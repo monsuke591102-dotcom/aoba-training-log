@@ -136,6 +136,7 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
   return <>
     <header className="masthead"><div className="shell"><span className="brand-mark"><Baseball size={27} /></span>AOBA TRAINING LOG</div></header>
     <main className="shell content" data-screen={page}>
+      {__MATCH_TEST_BUILD__ && <p className="card entry-note"><strong>試合記録の検証環境</strong> · {__MATCH_TEST_BUILD__.build}<br />端末内のみ保存 · テストデータ専用</p>}
       {data ? <>
         {storage.sync?.decision && page !== 'クラウド' && <section className="card section-toolbar">
           <p>{storage.sync.decision.kind === 'initial' ? '初回同期の確認が必要です。' : '同期するデータの選択が必要です。'}</p>

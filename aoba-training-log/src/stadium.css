@@ -183,6 +183,24 @@
   border-color: #436692; background: #0e2446;
 }
 [data-screen="設定"] .menu-group > summary, .routine-menu-selector .menu-group > summary { background: #1e4169; }
+[data-screen="設定"] .settings-menu-category {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+[data-screen="設定"] .settings-menu-category-icon { display: grid; color: #e3bd77; }
+[data-screen="設定"] [data-menu-category="守備"] .settings-menu-category-icon { color: #b4d6b8; }
+[data-screen="設定"] [data-menu-category="走塁"] .settings-menu-category-icon { color: #a4d5ee; }
+[data-screen="設定"] [data-menu-category="体づくり"] .settings-menu-category-icon { color: #d2c4ed; }
+[data-screen="設定"] [data-menu-category="その他"] .settings-menu-category-icon { color: #d5dee8; }
+[data-screen="設定"] .settings-menu-add {
+  min-height: 44px;
+  max-width: 100%;
+  margin-top: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .routine-menu-selector { min-width: 0; }
 .routine-menu-selector > legend { font-weight: 650; }
 .routine-menu-selector > .action { margin-top: 6px; }

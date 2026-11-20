@@ -1,11 +1,12 @@
 import { ChevronDown, Target } from 'lucide-react'
+import { Equipment } from './BaseballArt'
 import { ScreenTitle } from './ScreenTitle'
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { localDate } from './dates'
 import { categories, units } from './initialData'
 import { canDeleteMenusLocally } from './menuDeletionAccess'
-import type { Goal, Menu, TrainingData } from './model'
+import type { Category, Goal, Menu, TrainingData } from './model'
 import { errorMessage, rejectInvalidNumber, type Commit } from './Records'
 import { currentGoal, deleteMenu, menuStats, saveGoals, saveMenu, setMenuEnabled, weekDates } from './training'
 
@@ -41,7 +42,7 @@ function MenuEditor({ menu, data, commit, close, onSaved, create = false }: {
   return (
     <form className="editor" noValidate onSubmit={submit}>
       <fieldset className="fields" disabled={busy}>
-        <label>メニュー名<input required value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /></label>
+        <label>メニュー名<input required autoFocus={create} value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /></label>
         <label>カテゴリ<select value={categories.includes(draft.category) ? draft.category : ''} onChange={event => setDraft({
           ...draft, category: event.target.value ? event.target.value as Menu['category'] : menu.category,
         })}>
@@ -81,7 +82,8 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
   const [skill, setSkill] = useState(currentGoal(data.goals, 'skill', date)?.text ?? '')
   const [menuId, selectMenu] = useState<string | null>(null)
   const menuGroups = useRef<HTMLDivElement>(null)
-  const groupNames = data.menus.some(menu => menuCategory(menu) === unclassified) ? [...categories, unclassified] : categories
+  const groupNames: (Category | typeof unclassified)[] =
+    data.menus.some(menu => menuCategory(menu) === unclassified) ? [...categories, unclassified] : categories
 
   function openAllMenuGroups(open: boolean) {
     menuGroups.current?.querySelectorAll<HTMLDetailsElement>('details[data-menu-category]').forEach(group => { group.open = open })
@@ -171,14 +173,7 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
         </form>
       </section>
       <section className="card">
-        <div className="section-toolbar">
-          <h2>練習メニュー</h2>
-          {!newMenu && <button className="action" onClick={() => {
-            selectMenu(null)
-            setNewMenu({ id: crypto.randomUUID(), name: '', category: 'その他', unit: '回', enabled: true })
-          }}>メニューを追加</button>}
-        </div>
-        {newMenu && <MenuEditor key={newMenu.id} menu={newMenu} data={data} commit={commit} create close={() => setNewMenu(undefined)} onSaved={showSavedMenu} />}
+        <h2>練習メニュー</h2>
         <p className="hint">週間目標は月〜日。同じ単位の記録で集計します。</p>
         {visibilityError && <p className="error" role="alert">{visibilityError}</p>}
         <div className="form-actions">
@@ -192,7 +187,17 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
               const group = summary.closest('details')
               const focused = summary.ownerDocument.activeElement
               if (group?.open && group.contains(focused) && !summary.contains(focused)) summary.focus()
-            }}><span>{category}</span><span>{menus.length}種目</span><ChevronDown size={18} aria-hidden="true" /></summary>
+            }}>
+              <span className="settings-menu-category">
+                {category !== unclassified && <span className="settings-menu-category-icon" aria-hidden="true">
+                  {category === '走塁' ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 9h4m-6 4h4m1 5h15a2 2 0 0 0 2-2v-1l-7-2-4-6-4 3-2 5zm3 0v2m4-2v2m5-2v2m-6-10 2-1m0 4 2-1" />
+                  </svg> : <Equipment category={category} />}
+                </span>}
+                {category}
+              </span>
+              <span>{menus.length}種目</span><ChevronDown size={18} aria-hidden="true" />
+            </summary>
             <ul className="entries">
               {menus.map(menu => {
                 const stats = menuStats(data, menu, today)
@@ -226,6 +231,13 @@ export function Settings({ data, commit, onDataManagement, onCloudAccount, onPla
                 )
               })}
             </ul>
+            {newMenu?.category === category
+              ? <MenuEditor key={newMenu.id} menu={newMenu} data={data} commit={commit} create close={() => showSavedMenu(newMenu)} onSaved={showSavedMenu} />
+              : category !== unclassified && <button type="button" className="action settings-menu-add"
+                aria-label={category + 'にメニュー追加'} disabled={!!newMenu} onClick={() => {
+                  selectMenu(null)
+                  setNewMenu({ id: crypto.randomUUID(), name: '', category, unit: '回', enabled: true })
+                }}>＋メニュー追加</button>}
           </details>
         })}</div>
       </section>

@@ -1,21 +1,53 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, expect, test, vi } from 'vitest'
-import { BallField, normalizeFieldPoint, StrikeZone } from './BattingDiagrams'
+import { BallField, normalizeFieldPoint, pitchLocationLabel, pitchPoint, StrikeZone } from './BattingDiagrams'
 import { initialData } from './initialData'
-import { emptyMatchDetails, initialPitchTypes, isMatchDetails, type PlateAppearance } from './matchDetails'
+import { emptyMatchDetails, initialPitchTypes, isMatchDetails, pitchResultError, type Pitch, type PlateAppearance } from './matchDetails'
 import { Records } from './Records'
 
 afterEach(() => vi.unstubAllGlobals())
 
-test('ゾーン図に9区分と8つのゾーン外ボタンがあり、選択・投球番号が表示される', () => {
-  const location = { zone: 'outside', side: 'highLeft' } as const
+test('捕手視点の3×3補助線と同一点の投球番号・球種を表示する', () => {
+  const location = { zone: 'point', x: .1, y: .1 } as const
+  const legacy = { zone: 'outside', side: 'highLeft' } as const
   const html = renderToStaticMarkup(<StrikeZone location={location} onSelect={vi.fn()}
-    pitches={[{ id: 'pitch-1', order: 1, type: initialPitchTypes[0], result: 'ball', location }]} />)
-  expect(html.match(/class="zone-cell zone-inside"/g)).toHaveLength(9)
-  expect(html.match(/class="zone-cell zone-outside"/g)).toHaveLength(8)
-  expect(html).toContain('aria-label="ゾーン外・左上" aria-pressed="true"')
-  expect(html).toContain('class="zone-markers" aria-hidden="true"><span>1</span>')
+    pitches={[
+      { id: 'pitch-1', order: 1, type: initialPitchTypes[0], result: 'ball', location: legacy },
+      { id: 'pitch-2', order: 2, type: initialPitchTypes[1], result: 'calledStrike', location },
+      { id: 'pitch-3', order: 3, type: initialPitchTypes[2], result: 'foul', location: { zone: 'point', x: .21, y: .53 } },
+    ]} />)
   expect(html).toContain('捕手視点')
+  expect(html).toContain('d="M40 20v60 M60 20v60 M20 40h60 M20 60h60"')
+  expect(html.match(/class="zone-marker"/g)).toHaveLength(2)
+  expect(html).toContain('left:10%;top:10%')
+  expect(html).toContain('<span>1<span class="zone-marker-type">直</span></span><span>2<span class="zone-marker-type">直</span></span>')
+  expect(html).toContain('<span>3<span class="zone-marker-type">カー</span></span>')
+  expect(legacy).toEqual({ zone: 'outside', side: 'highLeft' })
+})
+
+test('投球位置は幅が変わっても同じ相対座標になり、境界とゾーン外を保持する', () => {
+  expect(normalizeFieldPoint(65, 111, 250, 300)).toEqual({ x: .26, y: .37 })
+  expect(normalizeFieldPoint(104, 148, 400, 400)).toEqual({ x: .26, y: .37 })
+  expect(normalizeFieldPoint(0, 400, 400, 400)).toEqual({ x: 0, y: 1 })
+  expect(pitchLocationLabel({ zone: 'point', x: .2, y: .8 })).toContain('ゾーン内')
+  expect(pitchLocationLabel({ zone: 'point', x: .199, y: .8 })).toContain('ゾーン外')
+  expect(pitchPoint({ zone: 'inside', row: 2, column: 0 })).toEqual({ x: .3, y: .7 })
+  expect(pitchPoint({ zone: 'outside', side: 'lowRight' })).toEqual({ x: .9, y: .9 })
+})
+
+test('安打・安打以外を打席結果と照合し、投球の省略と旧打球を認める', () => {
+  const pitch: Pitch = { id: 'p', order: 1, type: initialPitchTypes[0], result: 'hit',
+    location: { zone: 'point', x: .23, y: .71 } }
+  for (const result of ['single', 'double', 'triple', 'homeRun'] as const) {
+    expect(pitchResultError({ result, pitches: [pitch] })).toBeUndefined()
+  }
+  expect(pitchResultError({ result: 'groundOut', pitches: [pitch] })).toContain('単打・二塁打')
+  expect(pitchResultError({ result: 'single', pitches: [{ ...pitch, result: 'inPlayNonHit' }] })).toContain('最後の投球結果')
+  expect(pitchResultError({ result: 'groundOut', pitches: [{ ...pitch, result: 'inPlayNonHit' }] })).toBeUndefined()
+  expect(pitchResultError({ result: 'single', pitches: [pitch, { ...pitch, order: 2, result: 'ball' }] })).toContain('最後の投球1球')
+  expect(pitchResultError({ result: 'single', pitches: [{ ...pitch, result: 'inPlay' }] })).toBeUndefined()
+  expect(pitchResultError({ result: 'single' })).toBeUndefined()
+  expect(pitchResultError({ pitches: [pitch] })).toBeUndefined()
 })
 
 test('球場の相対座標は端を含み、マーカーと本塁からの線に使われる', () => {

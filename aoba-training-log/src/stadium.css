@@ -245,23 +245,30 @@
 }
 .right-batter { width: 100%; color: #a1bdd4; }
 .strike-grid {
-  display: grid; grid-template-columns: 44px repeat(3, minmax(0, 1fr)) 44px;
-  grid-template-rows: repeat(5, minmax(44px, auto));
-  gap: 1px; padding: 3px;
+  position: relative; width: 100%; aspect-ratio: 1; display: block;
+  padding: 0; border: 0; border-radius: 8px; background: #12283d;
+  overflow: hidden; cursor: crosshair; touch-action: manipulation;
 }
-.zone-cell {
-  display: grid; align-content: center; gap: 2px;
-  min-width: 0; min-height: 44px; padding: 3px 2px; color: #f2f7ff;
-  border: 1px solid #7898b2; border-radius: 3px; background: #214c66; touch-action: manipulation;
+.strike-guides { display: block; width: 100%; height: 100%; pointer-events: none; }
+.strike-guides rect, .strike-guides path { stroke: #a1bdd4; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.strike-guides rect { fill: #214c66; }
+.strike-guides path { fill: none; stroke-dasharray: 3 3; }
+.zone-marker, .zone-selection { position: absolute; pointer-events: none; }
+.zone-marker::before, .zone-selection {
+  width: 8px; height: 8px; border: 1px solid #102137; border-radius: 50%; background: #fff;
+  transform: translate(-50%, -50%);
 }
-.zone-outside { background: #12283d; border-color: #536e83; border-style: dashed; }
-.zone-cell[aria-pressed="true"] { outline: 2px solid #f8d17b; outline-offset: -3px; background: #674e24; font-weight: 700; }
-.zone-edge { font-size: .82em; }
-.zone-markers { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
-.zone-markers > span {
-  display: inline-grid; place-items: center; min-width: 1.25em; padding-inline: 2px; border-radius: 999px;
-  color: #f7fbff; background: #14263b; border: 1px solid #e6edf4; font-size: .78em; line-height: 1.15;
+.zone-marker::before { content: ''; position: absolute; inset: 0 auto auto 0; }
+.zone-selection { width: 16px; height: 16px; border: 2px solid #ffd27b; background: transparent; }
+.zone-marker-label {
+  display: flex; flex-wrap: wrap; gap: 2px; position: absolute; top: 4px; width: max-content;
+  max-width: 6rem; color: #f7fbff; font-size: .8rem; line-height: 1.25;
 }
+.zone-marker-label[data-align="right"] { left: 4px; }
+.zone-marker-label[data-align="left"] { right: 4px; justify-content: flex-end; }
+.zone-marker-label[data-upper] { top: auto; bottom: 4px; }
+.zone-marker-label > span { padding-inline: 3px; border-radius: 4px; background: #14263b; border: 1px solid #e6edf4; }
+.zone-marker-type { margin-inline-start: 2px; }
 .batting-choices { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .batting-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .count-dot { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; border-radius: 50%; color: #102137; font-weight: 800; }

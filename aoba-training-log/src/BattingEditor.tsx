@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react'
 import { BallField, pitchLocationLabel, StrikeZone } from './BattingDiagrams'
-import { initialPitchTypes, positions, type Pitch, type PitchLocation, type PitchTypeSnapshot, type PlateAppearance } from './matchDetails'
+import { initialPitchTypes, pitchResultError, positions, type Pitch, type PitchLocation, type PitchTypeSnapshot, type PlateAppearance } from './matchDetails'
 import { updateMatchDetails, type MatchTarget } from './matches'
 import { errorMessage, type Commit } from './recordFeedback'
 import { InputError } from './training'
@@ -18,7 +18,7 @@ const ballLabels = { grounder: 'ゴロ', liner: 'ライナー', fly: 'フライ'
 const buntLabels = { attempted: '試行', succeeded: '成功', failed: '失敗' } as const
 const pitchLabels: Record<Pitch['result'], string> = {
   calledStrike: '見逃し', swingingStrike: '空振り', foul: 'ファウル', foulBunt: 'バントのファウル',
-  ball: 'ボール', inPlay: '打球', hitByPitch: '死球',
+  ball: 'ボール', hit: 'ヒット', inPlayNonHit: '打球（安打以外）', inPlay: '打球（旧記録）', hitByPitch: '死球',
 }
 export const positionLabels: Record<typeof positions[number], string> = {
   P: '投手', C: '捕手', '1B': '一塁手', '2B': '二塁手', '3B': '三塁手',
@@ -81,7 +81,7 @@ export function BattingEditor({ target, appearances, commit, onClose }: {
     <ul className="entries">
       {[...appearances].sort((a, b) => a.order - b.order).map(row => <li key={row.id}>
         <p className="entry-title">第{row.order}打席 <span>{row.status === 'draft' ? '下書き' : '確定'}</span></p>
-        <p className="hint">{row.result ? resultLabels[row.result] : '結果未入力'} · 投球記録 {row.pitches?.length ?? 0}球</p>
+        <p className="hint">{row.result ? resultLabels[row.result] : '結果未入力'} · 記録投球数 {row.pitches?.length ?? 0}球</p>
         {deleting === row.id ? <div className="confirmation" role="group" aria-label={`第${row.order}打席の削除確認`}>
           <p>この打席と投球・振り返りを削除しますか？</p>
           <div className="form-actions">
@@ -111,7 +111,6 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     return [...types.values()]
   })
   const [extraPitch, setExtraPitch] = useState('')
-  const [pitchCount, setPitchCount] = useState(plate.pitchCount?.toString() ?? '')
   const [rbiInput, setRbiInput] = useState(plate.rbi?.toString() ?? '')
   const [balls, setBalls] = useState(plate.beforeFinalPitch?.balls.toString() ?? '')
   const [strikes, setStrikes] = useState(plate.beforeFinalPitch?.strikes.toString() ?? '')
@@ -121,6 +120,8 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   const { editor, saveBar } = useMatchSaveBar()
   const tabId = useId()
   const pitches = [...(plate.pitches ?? [])].sort((a, b) => a.order - b.order)
+  const editedPitch = pitches.find(row => row.id === pitch.id)
+  const pitchTypes = catalog.map(type => type.id === editedPitch?.type.id ? editedPitch.type : type)
   const pitchPending = Boolean(pitch.id || pitch.type || pitch.location || pitch.result)
   const update = (patch: Partial<PlateAppearance>) => setPlate(current => ({ ...current, ...patch }))
 
@@ -140,7 +141,8 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     if (pitchPending) { setTab(0); setError('入力中の投球を追加・更新するか、選択を取り消してください。'); return }
     if ((balls === '') !== (strikes === '')) { setTab(0); setError('最終投球前カウントはBとSを両方指定してください。'); return }
     if (status === 'complete' && !plate.result) { setTab(1); setError(missingResult); return }
-    if (pitchCount.trim() && !/^\d+$/.test(pitchCount.trim())) { setTab(0); setError('球数は0以上の整数で入力してください。'); return }
+    const resultError = pitchResultError(plate)
+    if (resultError) { setTab(1); setError(resultError); return }
     const rbiText = rbiInput.trim()
     const rbi = rbiText === '' ? undefined : Number(rbiText)
     if (rbi !== undefined && (!/^\d+$/.test(rbiText) || !Number.isSafeInteger(rbi))) {
@@ -150,7 +152,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     }
     pending.current = true
     setBusy(true)
-    const next = { ...plate, status, rbi, pitchCount: pitchCount.trim() ? Number(pitchCount) : undefined,
+    const next = { ...plate, status, rbi,
       beforeFinalPitch: balls === '' ? undefined : { balls: Number(balls), strikes: Number(strikes) } }
     try {
       await commit(data => updateMatchDetails(data, target, details => {
@@ -186,7 +188,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
         {tab === 0 ? <>
           <StrikeZone location={pitch.location} pitches={pitches} onSelect={location => setPitch(current => ({ ...current, location }))} />
           <fieldset className="batting-choices"><legend>球種</legend>
-            {catalog.map(type => <button key={type.id} type="button" className="action" aria-pressed={pitch.type?.id === type.id}
+            {pitchTypes.map(type => <button key={type.id} type="button" className="action" aria-pressed={pitch.type?.id === type.id}
               onClick={() => setPitch(current => ({ ...current, type }))}>{type.symbol ? type.symbol + ' ' : ''}{type.name}</button>)}
           </fieldset>
           <details className="batting-extra">
@@ -194,14 +196,14 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
             <label>球種名<input value={extraPitch} onChange={event => setExtraPitch(event.target.value)} /></label>
             <button type="button" className="action" disabled={!extraPitch.trim()} onClick={() => {
               const name = extraPitch.trim()
-              const type = catalog.find(item => item.name === name) ?? { id: crypto.randomUUID(), name }
+              const type = pitchTypes.find(item => item.name === name) ?? { id: crypto.randomUUID(), name }
               if (!catalog.some(item => item.id === type.id)) setCatalog(current => [...current, type])
               setPitch(current => ({ ...current, type }))
               setExtraPitch('')
             }}>この球種を選択</button>
           </details>
           <fieldset className="batting-choices"><legend>投球結果</legend>
-            {Object.entries(pitchLabels).map(([value, label]) => <button key={value} type="button" className="action"
+            {Object.entries(pitchLabels).filter(([value]) => value !== 'inPlay' || editedPitch?.result === 'inPlay').map(([value, label]) => <button key={value} type="button" className="action"
               aria-pressed={pitch.result === value}
               onClick={() => setPitch(current => ({ ...current, result: value as Pitch['result'] }))}>{label}</button>)}
           </fieldset>
@@ -223,7 +225,8 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
               </div>
             </li>)}
           </ol>}
-          <label>球数（任意）<input inputMode="numeric" value={pitchCount} onChange={event => setPitchCount(event.target.value)} /></label>
+          <p className="hint">記録投球数 {pitches.length}球（ここに登録した投球の数）</p>
+          {plate.pitchCount !== undefined && <p className="hint">旧記録の手入力球数 {plate.pitchCount}球</p>}
           <fieldset className="batting-counts"><legend>最終投球前カウント（任意）</legend>
             <CountSelect label="ストライク" symbol="S" max={2} value={strikes} onChange={setStrikes} />
             <CountSelect label="ボール" symbol="B" max={3} value={balls} onChange={setBalls} />

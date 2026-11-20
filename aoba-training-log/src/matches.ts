@@ -1,5 +1,5 @@
 import { isLocalDate, localDate } from './dates'
-import { emptyMatchDetails, isMatchDetails, type MatchDetails } from './matchDetails'
+import { emptyMatchDetails, isMatchDetails, needsPitchDetailsV2, type MatchDetails } from './matchDetails'
 import type { MatchEntry, TrainingData } from './model'
 import { deleteRecord, InputError, saveRecord, type RecordDraft } from './training'
 
@@ -66,7 +66,9 @@ export function updateMatchDetails(data: TrainingData, target: MatchTarget,
   const previous = 'matchId' in target ? matches.find(row => row.id === target.matchId)
     : matches.find(row => row.recordId === target.recordId)
   if (!previous && !record) throw new InputError('試合記録が見つかりません。')
-  const details = edit(previous?.details ? structuredClone(previous.details) : emptyMatchDetails())
+  const edited = edit(previous?.details ? structuredClone(previous.details) : emptyMatchDetails())
+  const details: MatchDetails = edited.version === 1 && edited.plateAppearances.some(needsPitchDetailsV2)
+    ? { ...edited, version: 2 } : edited
   if (!isMatchDetails(details)) throw new InputError('試合詳細に不正な項目または重複があります。')
   const timestamp = now.toISOString()
   const entry: MatchEntry = previous

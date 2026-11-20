@@ -7,11 +7,12 @@ import { trainingKinds } from './training'
 const appId = 'aoba-training-log'
 const backupVersion = 1
 const detailedBackupVersion = 2
+const pitchBackupVersion = 3
 const dataVersion: TrainingData['schemaVersion'] = 3
 
 export interface Backup {
   appId: typeof appId
-  backupVersion: typeof backupVersion | typeof detailedBackupVersion
+  backupVersion: typeof backupVersion | typeof detailedBackupVersion | typeof pitchBackupVersion
   createdAt: string
   dataVersion: typeof dataVersion
   data: TrainingData
@@ -135,9 +136,14 @@ export function validateData(data: unknown): asserts data is TrainingData {
     row => date(row.date) && routineItems.has(row.itemId), row => JSON.stringify([row.date, row.itemId]))
 }
 
+function backupVersionFor(data: TrainingData): Backup['backupVersion'] {
+  if (data.matches?.some(match => match.details?.version === 2)) return pitchBackupVersion
+  return hasMatchDetails(data) ? detailedBackupVersion : backupVersion
+}
+
 export function encodeBackup(data: TrainingData, now = new Date()): string {
   validateData(data)
-  const backup: Backup = { appId, backupVersion: hasMatchDetails(data) ? detailedBackupVersion : backupVersion,
+  const backup: Backup = { appId, backupVersion: backupVersionFor(data),
     createdAt: now.toISOString(), dataVersion, data }
   return JSON.stringify(backup, null, 2)
 }
@@ -150,12 +156,13 @@ export function decodeBackup(text: string): Backup {
     throw new BackupError('JSONを読み取れません。ファイルが壊れていないか確認してください。')
   }
   if (!object(value) || value.appId !== appId) throw new BackupError('AOBA TRAINING LOGのバックアップを選んでください。')
-  if ((value.backupVersion !== backupVersion && value.backupVersion !== detailedBackupVersion) || value.dataVersion !== dataVersion) {
+  if ((value.backupVersion !== backupVersion && value.backupVersion !== detailedBackupVersion &&
+    value.backupVersion !== pitchBackupVersion) || value.dataVersion !== dataVersion) {
     throw new BackupError('このバックアップのバージョンには対応していません。')
   }
   if (!string(value.createdAt) || !timestamp(value.createdAt)) throw new BackupError('バックアップの作成日時が不正です。')
   validateData(value.data)
-  if (hasMatchDetails(value.data) !== (value.backupVersion === detailedBackupVersion)) {
+  if (backupVersionFor(value.data) !== value.backupVersion) {
     throw new BackupError('試合詳細とバックアップ形式のバージョンが一致しません。')
   }
   return { appId, backupVersion: value.backupVersion, dataVersion, createdAt: value.createdAt, data: value.data }

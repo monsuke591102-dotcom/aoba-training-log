@@ -2,8 +2,9 @@ import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createAccountStorage } from './accountStorage'
 import { decodeBackup, encodeBackup, replacesMatches, restoreChange, validateData } from './backup'
+import { calculateMatchBattingStats } from './battingStats'
 import { initialData } from './initialData'
-import { emptyMatchDetails, initialPitchTypes, type MatchDetails } from './matchDetails'
+import { emptyMatchDetails, initialPitchTypes, isMatchDetails, type MatchDetails, type Pitch } from './matchDetails'
 import { deleteMatch, saveMatch, saveMatchDetailRow, updateMatchDetails, type MatchDraft } from './matches'
 import { createStorage } from './storage'
 import { chooseSnapshot } from './sync'
@@ -164,4 +165,56 @@ test('詳細の保存も既存の試合編集ガードに従う', () => {
   const { old, target } = fixture()
   vi.stubGlobal('__LOCAL_MATCH_RECORDS__', false)
   expect(() => saveMatchDetailRow(old, target, 'plateAppearances', plate, now)).toThrow('編集は現在無効')
+})
+
+test('旧位置と旧球数を保持したまま座標形式を保存・再読込し、v3バックアップを復元できる', async () => {
+  const { saved, target, details } = fixture()
+  const oldPlate = details.plateAppearances[0]
+  const legacy: Pitch = { id: 'legacy-in-play', order: 1, type: { ...initialPitchTypes[1], name: '旧球種名' }, result: 'inPlay',
+    location: { zone: 'outside', side: 'highLeft' } }
+  const newPitch: Pitch = { id: 'new-pitch', order: 2, type: initialPitchTypes[0], result: 'hit',
+    location: { zone: 'point', x: .237, y: 1 } }
+  const oldData = updateMatchDetails(saved, target, current => ({
+    ...current, plateAppearances: [{ ...oldPlate, pitches: [legacy] }, ...current.plateAppearances.slice(1)],
+    baserunning: current.baserunning.map(row => ({ ...row, plateAppearanceId: oldPlate.id })),
+    fielding: current.fielding.map(row => ({ ...row, plateAppearanceId: oldPlate.id })),
+  }), now)
+  const oldDetails = oldData.matches![0].details!
+  const oldBackup = decodeBackup(encodeBackup(oldData, now))
+  expect(oldBackup.backupVersion).toBe(2)
+
+  const name = 'pitch-v2-' + crypto.randomUUID()
+  const storage = createStorage(name)
+  await storage.update(restoreChange(oldBackup, initialData()))
+  const oldEdit = { ...oldDetails.plateAppearances[0], result: 'groundOut' } as const
+  await storage.update(data => saveMatchDetailRow(data, target, 'plateAppearances', oldEdit, now))
+  const legacyReloaded = await createStorage(name).read()
+  expect(legacyReloaded.matches![0].details).toEqual({ ...oldDetails,
+    plateAppearances: [oldEdit, ...oldDetails.plateAppearances.slice(1)] })
+  expect(decodeBackup(encodeBackup(legacyReloaded, now)).backupVersion).toBe(2)
+  const nextPlate = { ...oldDetails.plateAppearances[0], pitches: [legacy, newPitch] }
+  expect(isMatchDetails({ ...oldDetails, plateAppearances: [nextPlate, ...oldDetails.plateAppearances.slice(1)] })).toBe(false)
+  await storage.update(data => saveMatchDetailRow(data, target, 'plateAppearances', nextPlate, now))
+  const reloaded = await createStorage(name).read()
+  const newDetails = reloaded.matches![0].details!
+  expect(newDetails).toEqual({ ...oldDetails, version: 2,
+    plateAppearances: [nextPlate, ...oldDetails.plateAppearances.slice(1)] })
+  expect(isMatchDetails({ ...newDetails, plateAppearances: [{ ...nextPlate, pitches: [
+    { ...newPitch, location: { zone: 'point', x: -.001, y: 1 } },
+  ] }, ...oldDetails.plateAppearances.slice(1)] })).toBe(false)
+  expect(isMatchDetails({ ...newDetails, plateAppearances: [
+    { ...nextPlate, result: 'groundOut' }, ...oldDetails.plateAppearances.slice(1),
+  ] })).toBe(false)
+
+  const edited = await storage.update(data => saveMatchDetailRow(data, target, 'plateAppearances',
+    { ...nextPlate, result: 'double' }, now))
+  expect(calculateMatchBattingStats(reloaded.matches![0])).toMatchObject({ h: 1, tb: 1, slg: .5 })
+  expect(calculateMatchBattingStats(edited.matches![0])).toMatchObject({ h: 1, tb: 2, avg: .5, obp: .5, slg: 1 })
+
+  const backup = decodeBackup(encodeBackup(edited, now))
+  expect(backup.backupVersion).toBe(3)
+  expect(() => decodeBackup(JSON.stringify({ ...backup, backupVersion: 2 }))).toThrow('一致しません')
+  const restored = createStorage('pitch-restore-' + crypto.randomUUID())
+  await restored.update(restoreChange(backup, initialData()))
+  expect(await restored.read()).toEqual(edited)
 })

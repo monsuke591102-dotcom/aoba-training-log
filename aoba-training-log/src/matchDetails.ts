@@ -11,7 +11,8 @@ export const initialPitchTypes = [
 export const plateResults = ['single', 'double', 'triple', 'homeRun', 'groundOut', 'flyOut', 'lineOut', 'popOut',
   'doublePlay', 'triplePlay', 'otherOut', 'strikeoutSwinging', 'strikeoutLooking', 'walk', 'hitByPitch', 'reachedOnError', 'fieldersChoice',
   'sacrificeBunt', 'sacrificeFly', 'interference', 'droppedThirdStrike'] as const
-const pitchResults = ['ball', 'calledStrike', 'swingingStrike', 'foul', 'foulBunt', 'inPlay', 'hitByPitch'] as const
+const legacyPitchResults = ['ball', 'calledStrike', 'swingingStrike', 'foul', 'foulBunt', 'inPlay', 'hitByPitch'] as const
+const pitchResults = [...legacyPitchResults, 'hit', 'inPlayNonHit'] as const
 const battedBallTypes = ['grounder', 'liner', 'fly', 'popup', 'bunt'] as const
 const buntResults = ['attempted', 'succeeded', 'failed'] as const
 const outsideSides = ['high', 'low', 'left', 'right', 'highLeft', 'highRight', 'lowLeft', 'lowRight'] as const
@@ -36,6 +37,8 @@ export type PitchTypeSnapshot = { id: string; name: string; symbol?: string }
 export type PitchLocation =
   | { zone: 'inside'; row: 0 | 1 | 2; column: 0 | 1 | 2 }
   | { zone: 'outside'; side: typeof outsideSides[number] }
+  // Relative to the full diagram, including the area outside the strike zone.
+  | { zone: 'point'; x: number; y: number }
 export type Pitch = OrderedRow & { type: PitchTypeSnapshot; result: typeof pitchResults[number]; location: PitchLocation }
 
 export type PlateAppearance = DraftableRow & Reflection & {
@@ -77,7 +80,7 @@ type SummaryCounts = {
 }
 
 export interface MatchDetails {
-  version: 1
+  version: 1 | 2
   opponent?: string
   // A consumer counts only the selected source per discipline, and skips drafts.
   source: { [K in keyof SummaryCounts]-?: typeof sources[number] }
@@ -120,22 +123,46 @@ function rows(v: unknown, valid: (row: Row) => boolean, ids: Set<unknown>) {
 
 const draftable = (row: Row) => oneOf(row.status, ['draft', 'complete']) &&
   ['feel', 'reflection', 'improvement'].every(key => optional(row[key], text))
-const pitchLocation = (v: unknown) => object(v) && (v.zone === 'inside'
-  ? count(v.row, 0, 2) && count(v.column, 0, 2)
-  : v.zone === 'outside' && oneOf(v.side, outsideSides))
+const pitchLocation = (v: unknown, version: MatchDetails['version']) => object(v) && (
+  v.zone === 'inside' && count(v.row, 0, 2) && count(v.column, 0, 2) ||
+  v.zone === 'outside' && oneOf(v.side, outsideSides) ||
+  version === 2 && v.zone === 'point' && fieldPoint(v)
+)
 const pitchType = (v: unknown) => object(v) && id(v.id) &&
   typeof v.name === 'string' && v.name.trim().length > 0 && optional(v.symbol, text)
 const summaryFields = (v: unknown, fields: readonly string[]) => object(v) &&
   Object.entries(v).every(([key, value]) => fields.includes(key) && count(value))
 
+export function pitchResultError({ pitches, result }: Pick<PlateAppearance, 'pitches' | 'result'>) {
+  const batted = pitches?.filter(pitch => pitch.result === 'hit' || pitch.result === 'inPlayNonHit') ?? []
+  if (!batted.length) return
+  if (batted.length > 1 || pitches?.some(pitch => pitch.order > batted[0].order)) {
+    return '「ヒット」または「打球（安打以外）」は、記録した最後の投球1球だけに指定してください。'
+  }
+  if (!result) return
+  const isHit = result === 'single' || result === 'double' || result === 'triple' || result === 'homeRun'
+  if (batted[0].result === 'hit' && !isHit) {
+    return '投球が「ヒット」の場合、打席結果は単打・二塁打・三塁打・本塁打から選んでください。'
+  }
+  if (batted[0].result === 'inPlayNonHit' && isHit) {
+    return '打席結果が安打です。最後の投球結果を「ヒット」に変更してください。'
+  }
+}
+
+export function needsPitchDetailsV2(plate: PlateAppearance) {
+  return plate.pitches?.some(pitch => pitch.location.zone === 'point' ||
+    pitch.result === 'hit' || pitch.result === 'inPlayNonHit') ?? false
+}
+
 export function isMatchDetails(value: unknown): value is MatchDetails {
-  if (!object(value) || value.version !== 1 || !optional(value.opponent, text) || !object(value.source) ||
+  if (!object(value) || (value.version !== 1 && value.version !== 2) || !optional(value.opponent, text) || !object(value.source) ||
     !oneOf(value.source.batting, sources) || !oneOf(value.source.baserunning, sources) || !oneOf(value.source.fielding, sources)) return false
   if (!optional(value.summary, summary => object(summary) &&
     optional(summary.batting, v => summaryFields(v, ['appearances', 'hits', 'rbi'])) &&
     optional(summary.baserunning, v => summaryFields(v, ['advances', 'steals', 'caughtStealing', 'outs', 'runs'])) &&
     optional(summary.fielding, v => summaryFields(v, ['putouts', 'assists', 'errors'])))) return false
 
+  const version = value.version
   const ids = new Set<unknown>()
   if (!rows(value.plateAppearances, row => draftable(row) &&
     (row.status === 'complete' ? oneOf(row.result, plateResults) : optional(row.result, v => oneOf(v, plateResults))) &&
@@ -144,7 +171,8 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
     optional(row.outs, v => count(v, 0, 2)) &&
     optional(row.errorPosition, v => row.result === 'reachedOnError' && oneOf(v, positions)) &&
     optional(row.pitchCount, count) && optional(row.beforeFinalPitch, v => object(v) && count(v.balls, 0, 3) && count(v.strikes, 0, 2)) &&
-    optional(row.pitches, v => rows(v, pitch => pitchType(pitch.type) && oneOf(pitch.result, pitchResults) && pitchLocation(pitch.location), ids)), ids)) return false
+    optional(row.pitches, v => rows(v, pitch => pitchType(pitch.type) && oneOf(pitch.result, version === 2 ? pitchResults : legacyPitchResults) &&
+      pitchLocation(pitch.location, version), ids)) && !pitchResultError(row as PlateAppearance), ids)) return false
 
   const appearances = new Set((value.plateAppearances as PlateAppearance[]).map(row => row.id))
   const linked = (row: Row) => optional(row.plateAppearanceId, v => typeof v === 'string' && appearances.has(v))

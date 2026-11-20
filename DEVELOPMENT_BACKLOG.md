@@ -3,7 +3,7 @@
 ## 開発状況サマリー
 
 - 開発ブランチ `codex/settings-menu-category-icons` の `570020a` に設定画面の分類別メニュー管理UIを実装し、GitHubに保存済み。Phase 4N.2では開発ブランチ上でVitest 135件、型チェック、通常・隔離ビルドが合格。
-- Phase 4N.4で、現行公開版の練習計画UIと同期経路を維持したリリース `ba8d4d9` を本番Pagesへ公開済み。
+- Phase 4O.3で、設定画面と同期経路を維持した練習計画UI `29e990d` を本番Pagesへ公開済み。直前版はPhase 4N.4の `ba8d4d9`。
 - 確認時の `origin/main` は `f8ed7a8`。新Supabase RPCを使用する同期クライアントを含む。
 - 2026-11-20のこの会話で確認できる要望6件を照合した。会話で確認できる範囲を超えた当日の要望は、網羅性未確認。
 
@@ -17,7 +17,7 @@
 | DEV-004 | 試合記録の保存と振り返り改善 | 要確認 | 機能フラグが有効な環境で、メニュー未選択の試合を保存でき、「良かったこと」「改善したいこと」を任意入力できる。本番書き込みはOFF。iPhone隔離実機検証と本番有効化は要確認 | `718b0af`（機能）、`ed48eb1`（隔離ビルド） |
 | DEV-005 | カレンダーで予定を追加するときの「予定の種類」をプルダウンからアイコンのワンタップ選択に変更 | 低 | 要望登録。現行カレンダーはプルダウン。ホームの予定編集のボタン選択は関連する別画面 | `1218ec4`（ホームの関連UI）。本要望の実装コミットは要確認 |
 | DEV-006 | 分類の追加・名称変更・並び替え | 将来構想 | 現行は固定5分類。分類管理の仕様と実施時期は要確認 | 要確認 |
-| DEV-007 | 練習計画変更画面のメニュー選択を、設定画面と同じ野球アイコン付き5分類表示に統一 | 要確認 | 開発版はVitest 136件合格。現行本番 `ba8d4d9` を基点としたローカル候補はVitest 104件、型チェック、通常・接続無効・Pages向けビルド、専用Chrome 375px・430pxで合格。候補は未push・本番未公開 | `febd0e2`（実装）、`29e990d71acdc35dd85f0b6e7f5afd3d69f00a0a`（候補） |
+| DEV-007 | 練習計画変更画面のメニュー選択を、設定画面と同じ野球アイコン付き5分類表示に統一 | 要確認 | 本番公開済み。候補のVitest 104件、型チェック、ビルド、専用Chrome 375px・430pxで合格。Actionsと公開ファイルの照合も合格。iPhone実機・VoiceOver・実アカウント同期は要確認 | `febd0e2`（実装）、`29e990d71acdc35dd85f0b6e7f5afd3d69f00a0a`（本番） |
 
 ## 決定済み仕様
 
@@ -39,13 +39,13 @@
 - DEV-005の種類アイコンと、タップ時に選択だけ行うか保存まで行うかは要確認。
 - DEV-006の分類ID、既存メニューとの紐づけ、並び順の保存と互換性は要確認。
 - DEV-001のVoiceOver・実アカウントのクラウド同期は要確認。
-- DEV-007のiPhone実機・VoiceOver、公開時期は要確認。ローカル検証では合成データのメニューID、計画・記録の参照、保存・再読み込みを確認済み。
+- DEV-007のiPhone実機・VoiceOver・実アカウントのクラウド同期は要確認。ローカル検証では合成データのメニューID、計画・記録の参照、保存・再読み込みを確認済み。
 
 ## 公開状況・技術的制約
 
-- DEV-007のローカル候補は `codex/release-plan-menu-category-ui`。Pages向け生成JSで旧経路の初回INSERT・`training_log_update_snapshot` を確認し、`training_log_write_snapshot_v2` は含まれていない。候補上でDEV-001の分類内追加・保存・表示切替とDEV-007の選択・解除、目標入力、再読み込み・翌月版コピーを確認済み。本番同期と候補ブランチのPages許可は要確認。
+- Phase 4O.3の本番Pagesは `codex/release-plan-menu-category-ui` の `29e990d71acdc35dd85f0b6e7f5afd3d69f00a0a`。Actions [44692859842](https://github.com/monsuke591102-dotcom/aoba-training-log/actions/runs/44692859842) とPagesデプロイ `7935693846` は成功。HTML、JS、CSS、Manifest、Service Worker、アイコンの全10ファイルはHTTP 200で、Actions成果物とSHA-256が一致。配信JSで新しい分類UI、旧経路の初回INSERT・`training_log_update_snapshot`、新RPC呼び出しなし、試合書き込みOFFを確認済み。Pages環境には今回のリリースブランチを完全一致で追加し、既存許可を維持。
 
-- Phase 4N.4の本番Pagesは `codex/release-settings-menu-category-icons` の `ba8d4d9a13d4aef20a7f85cf17d7797d280e5dcd`。Actions実行 [44690353470](https://github.com/monsuke591102-dotcom/aoba-training-log/actions/runs/44690353470) とPagesデプロイ `7935360004` は成功。HTML、JS、CSS、Manifest、Service Worker、アイコンはHTTP 200で、Actions成果物とのSHA-256が一致。配信JSに5分類のUI、従来の初回INSERTと旧更新RPCを確認。新RPCの呼び出しは検出されなかった。
+- Phase 4N.4の直前公開版は `codex/release-settings-menu-category-icons` の `ba8d4d9a13d4aef20a7f85cf17d7797d280e5dcd`。Actions実行 [44690353470](https://github.com/monsuke591102-dotcom/aoba-training-log/actions/runs/44690353470) とPagesデプロイ `7935360004` は成功。HTML、JS、CSS、Manifest、Service Worker、アイコンはHTTP 200で、Actions成果物とのSHA-256が一致。配信JSに5分類のUI、従来の初回INSERTと旧更新RPCを確認。新RPCの呼び出しは検出されなかった。
 - 前回公開は `codex/release-routine-menu-ui` の `cb1077d`（デプロイ `7934416859`）。今回とのコード差分はUIとテストの3ファイル。Phase 4N.3ではVitest 103件、型チェック、通常・接続無効ビルド、専用Chromeの375px・430pxでの操作検証が合格。既存復旧用 `codex/rollback-routine-menu-ui` は `718b0af`。
 - **新しいSupabase RPC `training_log_write_snapshot_v2` は本番未適用。** 取得済み `main` の同期クライアントは新RPCを呼び、旧経路へのフォールバックがない。現行の本番同期を維持するため、`main` をそのままデプロイできない。
 - 新RPCの実PostgREST経由での権限・競合・互換性検証と本番適用は要確認。試合書き込みの有効化には旧クライアントの書き込み制御、端末更新、バックアップ確認と別途承認が必要。
@@ -71,3 +71,4 @@
 | 2026-11-20 | DEV-001 | 本番 `ba8d4d9` のiPhone実機確認6項目がすべて合格したことを記録 | 利用者の実機確認報告 |
 | 2026-11-20 | DEV-007 | 練習計画の5分類UI統一を登録し、ローカル実装・検証結果を記録 | Phase 4O.1の確定仕様、`febd0e2`、Vitest・ビルド・専用Chromeの検証結果 |
 | 2026-11-20 | DEV-007 | 現行本番を基点とする候補を作成し、旧同期と両画面の操作を検証 | Phase 4O.2、Pages履歴 `7935360004`、候補 `29e990d` の差分・テスト・ビルド結果 |
+| 2026-11-20 | DEV-007 | 練習計画UIを本番公開し、配信ファイル・旧同期経路・試合書き込みOFFを確認 | Phase 4O.3の承認、Actions `44692859842`、Pages `7935693846`、SHA-256照合結果 |

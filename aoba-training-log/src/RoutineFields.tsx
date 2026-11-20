@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { units } from './initialData'
+import { Check, ChevronDown } from 'lucide-react'
+import { categories, units } from './initialData'
 import type { Menu, RoutineItem } from './model'
 import { changeRoutineMode, selectRoutineMenu, weekdays, type RoutineDraftItem } from './routines'
+
+const menuLabel = (menu: Menu) => `${menu.name}（${menu.unit}）${menu.enabled ? '' : ' · 非表示'}`
 
 export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem; menus: Menu[]; change: (item: RoutineDraftItem) => void }) {
   const menu = menus.find(menu => menu.id === item.menuId)
@@ -9,6 +12,11 @@ export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem;
   const mode = item.mode ?? (menu ? 'quantity' : 'display')
   const needsMenu = (item.menuId !== undefined && (!menu || unit !== menu.unit)) ||
     (mode === 'quantity' && Boolean(item.pausedLink))
+  const selected = needsMenu ? undefined : menu
+  const otherMenus = menus.filter(menu => !categories.includes(menu.category))
+  const groups: { label: string; menus: Menu[] }[] =
+    categories.map(category => ({ label: category, menus: menus.filter(menu => menu.category === category) }))
+  if (otherMenus.length) groups.push({ label: '未分類', menus: otherMenus })
   return <fieldset className="fields">
     <label>種目名
       <span className="routine-name-field">
@@ -17,13 +25,28 @@ export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem;
           onChange={event => change({ ...item, name: event.target.value.replace(/\n/g, ' ') })} />
       </span>
     </label>
-    <label>記録メニュー<select value={needsMenu ? '' : item.menuId ?? ''} onChange={event => {
-      const next = menus.find(menu => menu.id === event.target.value)
-      change(next ? selectRoutineMenu(item, next) : changeRoutineMode(item, undefined, menus))
-    }}>
-      <option value="" disabled={needsMenu}>{needsMenu ? '記録メニューを選び直す' : '計画の表示のみ'}</option>
-      {menus.map(menu => <option key={menu.id} value={menu.id}>{menu.name}（{menu.unit}）{!menu.enabled && ' · 非表示'}</option>)}
-    </select></label>
+    <fieldset className="routine-menu-selector">
+      <legend>記録メニュー</legend>
+      <p className="entry-note" role="status">選択中：{needsMenu ? '選び直してください' : selected ? menuLabel(selected) : 'なし'}</p>
+      <button type="button" className="action" disabled={needsMenu} aria-pressed={!needsMenu && !selected}
+        onClick={() => { if (selected) change(changeRoutineMode(item, undefined, menus)) }}>計画の表示のみ</button>
+      {groups.map(group => <details className="menu-group" key={group.label}>
+        <summary onClick={({ currentTarget: summary }) => {
+          const focused = summary.ownerDocument.activeElement
+          if (summary.closest('details')?.open && summary.parentElement?.contains(focused) && !summary.contains(focused)) summary.focus()
+        }}><span>{group.label}</span><span>{group.menus.length}種目{group.menus.some(menu => menu.id === selected?.id) && ' · 選択中'}</span>
+          <ChevronDown size={18} aria-hidden="true" /></summary>
+        {group.menus.length ? <ul className="routine-menu-options">
+          {group.menus.map(menu => <li key={menu.id}>
+            <button type="button" className="action" aria-pressed={selected?.id === menu.id}
+              onClick={() => { if (selected?.id !== menu.id) change(selectRoutineMenu(item, menu)) }}>
+              {selected?.id === menu.id && <Check size={16} aria-hidden="true" />}
+              <span>{menuLabel(menu)}</span>
+            </button>
+          </li>)}
+        </ul> : <p className="hint">該当するメニューはありません。</p>}
+      </details>)}
+    </fieldset>
     {(item.menuId !== undefined || needsMenu) && <p className="hint">種目名は計画内の表示名です。記録先や単位を変えるには、使いたい記録メニューを選んでください。</p>}
     <label>記録方法<select value={mode} onChange={event => {
       const value = event.target.value

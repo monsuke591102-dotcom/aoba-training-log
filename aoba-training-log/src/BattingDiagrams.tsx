@@ -78,7 +78,7 @@ function pitchMarkers(pitches: DiagramPitch[]) {
     const preferred = { x: keepInside(anchor.x), y: keepInside(anchor.y) }
     const label = fits(preferred) ? preferred : undefined
     if (label) placed.push(label)
-    return { pitch, anchor, label }
+    return { pitch, anchor, label, movedForOverlap: false }
   })
 
   for (const marker of markers) {
@@ -91,7 +91,10 @@ function pitchMarkers(pitches: DiagramPitch[]) {
         distance = next
       }
     }
-    if (marker.label) placed.push(marker.label)
+    if (marker.label) {
+      placed.push(marker.label)
+      marker.movedForOverlap = true
+    }
   }
   return markers
 }
@@ -173,8 +176,8 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
         <path d="M40 20v60 M60 20v60 M20 40h60 M20 60h60" />
       </svg>
       <svg className="zone-anchors" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {markers.map(({ pitch, anchor, label }) => <g key={pitch.id}>
-          {label && (anchor.x !== label.x || anchor.y !== label.y) && <line x1={anchor.x * 100} y1={anchor.y * 100} x2={label.x * 100} y2={label.y * 100} />}
+        {markers.map(({ pitch, anchor, label, movedForOverlap }) => label && movedForOverlap && <g key={pitch.id}>
+          <line x1={anchor.x * 100} y1={anchor.y * 100} x2={label.x * 100} y2={label.y * 100} />
           <circle data-pitch-order={pitch.order} cx={anchor.x * 100} cy={anchor.y * 100} r="1" />
         </g>)}
       </svg>

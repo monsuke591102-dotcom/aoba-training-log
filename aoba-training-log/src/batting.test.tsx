@@ -19,7 +19,10 @@ test('捕手視点の3×3補助線と同一点の投球番号・球種を表示�
   expect(html).toContain('捕手視点')
   expect(html).toContain('d="M40 20v60 M60 20v60 M20 40h60 M20 60h60"')
   expect(html.match(/class="zone-marker"/g)).toHaveLength(3)
-  expect(html.match(/cx="10" cy="10"/g)).toHaveLength(2)
+  expect(html.match(/<line /g)).toHaveLength(2)
+  expect(html.match(/<circle data-pitch-order=/g)).toHaveLength(2)
+  expect(html).not.toContain('<circle data-pitch-order="1"')
+  expect(html).toContain('<circle data-pitch-order="2" cx="10" cy="10"')
   expect(Number(html.match(/data-pitch-order="3" cx="([^"]+)/)?.[1])).toBeCloseTo(10.1)
   const positions = Array.from(html.matchAll(/class="zone-marker"[^>]+style="([^"]+)"/g), match => match[1])
   expect(new Set(positions).size).toBe(3)
@@ -29,16 +32,17 @@ test('捕手視点の3×3補助線と同一点の投球番号・球種を表示�
   expect(legacy).toEqual({ zone: 'outside', side: 'highLeft' })
 })
 
-test('単独マーカーは記録位置に重なり、端では引き出し線が元の位置を示す', () => {
+test('単独のカーブとストレートは、端への収まり調整を含めて白い点と引き出し線を表示しない', () => {
   const pitch = { id: 'point', order: 1, type: initialPitchTypes[0], result: 'foul' } as const
   const html = renderToStaticMarkup(<StrikeZone onSelect={vi.fn()} pitches={[
-    { ...pitch, location: { zone: 'point', x: .27, y: .64 } },
+    { ...pitch, type: initialPitchTypes[1], location: { zone: 'point', x: .27, y: .64 } },
     { ...pitch, id: 'edge', order: 2, location: { zone: 'point', x: 1, y: 0 } },
   ]} />)
   expect(html).toContain('data-pitch-order="1" style="left:27%;top:64%"')
-  expect(html.match(/<line /g)).toHaveLength(1)
-  expect(html).toContain('<line x1="100" y1="0"')
-  expect(html).toContain('data-pitch-order="2" cx="100" cy="0"')
+  expect(html).toContain('data-symbol="◣"')
+  expect(html).toContain('data-symbol="●"')
+  expect(html).not.toContain('<line ')
+  expect(html).not.toContain('<circle data-pitch-order=')
 })
 
 test('明示ストライクとボールを色分けし、打球アウトは対応する最終投球だけを赤にする', () => {
@@ -91,7 +95,7 @@ test('共通のシュート定義から右向き三角形を描き、その重�
   expect(html).toContain('aria-label="12球目 · シュート"')
   expect(html).toContain('<polygon class="zone-marker-symbol" points="0,0 100,50 0,100"')
   expect(html).toMatch(/<text class="zone-marker-number" x="33" y="50"[^>]*text-anchor="middle"[^>]*>12<\/text>/)
-  expect(html).toContain('cx="100" cy="100"')
+  expect(html).not.toContain('<circle data-pitch-order=')
 })
 
 test('保存済みのカーブは元のスナップショットを保ち、選択肢と同じ左下の三角形で表示する', () => {

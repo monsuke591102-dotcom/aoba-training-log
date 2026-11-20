@@ -20,7 +20,7 @@ const pitchLabels: Record<Pitch['result'], string> = {
   calledStrike: '見逃し', swingingStrike: '空振り', foul: 'ファウル', foulBunt: 'バントのファウル',
   ball: 'ボール', inPlay: '打球', hitByPitch: '死球',
 }
-const positionLabels: Record<typeof positions[number], string> = {
+export const positionLabels: Record<typeof positions[number], string> = {
   P: '投手', C: '捕手', '1B': '一塁手', '2B': '二塁手', '3B': '三塁手',
   SS: '遊撃手', LF: '左翼手', CF: '中堅手', RF: '右翼手',
 }

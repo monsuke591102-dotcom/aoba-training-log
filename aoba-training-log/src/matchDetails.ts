@@ -64,6 +64,7 @@ export type FieldingPlay = DraftableRow & Reflection & {
   plateAppearanceId?: string
   position?: Position
   playType?: typeof playTypes[number]
+  fieldPoint?: PlateAppearance['fieldPoint']
   credits?: (typeof fieldingCredits[number])[]
   development?: { skill: typeof skills[number]; note: string }[]
 }
@@ -102,6 +103,7 @@ const id = (v: unknown) => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0
 const count = (v: unknown, min = 0, max = Number.MAX_SAFE_INTEGER) =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max
 const coordinate = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1
+const fieldPoint = (v: unknown) => object(v) && coordinate(v.x) && coordinate(v.y)
 
 function rows(v: unknown, valid: (row: Row) => boolean, ids: Set<unknown>) {
   if (!Array.isArray(v)) return false
@@ -137,7 +139,7 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
   if (!rows(value.plateAppearances, row => draftable(row) &&
     (row.status === 'complete' ? oneOf(row.result, plateResults) : optional(row.result, v => oneOf(v, plateResults))) &&
     optional(row.bunt, v => oneOf(v, buntResults)) && optional(row.battedBall, v => oneOf(v, battedBallTypes)) &&
-    optional(row.fieldPoint, v => object(v) && coordinate(v.x) && coordinate(v.y)) &&
+    optional(row.fieldPoint, fieldPoint) &&
     optional(row.outs, v => count(v, 0, 2)) &&
     optional(row.errorPosition, v => row.result === 'reachedOnError' && oneOf(v, positions)) &&
     optional(row.pitchCount, count) && optional(row.beforeFinalPitch, v => object(v) && count(v.balls, 0, 3) && count(v.strikes, 0, 2)) &&
@@ -157,6 +159,7 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
     rows(value.fielding, row => draftable(row) && linked(row) &&
       (row.status === 'draft' || (row.position !== undefined && row.playType !== undefined)) &&
       optional(row.position, v => oneOf(v, positions)) && optional(row.playType, v => oneOf(v, playTypes)) &&
+      optional(row.fieldPoint, fieldPoint) &&
       optional(row.credits, v => Array.isArray(v) && new Set(v).size === v.length && v.every(c => oneOf(c, fieldingCredits))) &&
       optional(row.development, v => Array.isArray(v) && v.every(s => object(s) && oneOf(s.skill, skills) && text(s.note))), ids)
 }

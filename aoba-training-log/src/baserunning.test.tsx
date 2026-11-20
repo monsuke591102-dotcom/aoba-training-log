@@ -110,7 +110,7 @@ test('打席なしで保存でき、編集・削除で別プレー・打席・�
 test('走塁の入口は試合編集が有効な環境に限る', () => {
   enableMatches()
   const render = () => renderToStaticMarkup(<Records data={{ ...initialData(), matches: [match] }} commit={vi.fn()} />)
-  expect(render()).toContain('走塁を記録')
+  expect(render()).toContain('走塁を記録する')
   vi.stubGlobal('__MATCH_TEST_BUILD__', null)
-  expect(render()).not.toContain('走塁を記録')
+  expect(render()).not.toContain('走塁を記録する')
 })

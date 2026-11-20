@@ -1,4 +1,6 @@
+import type { MatchDetails } from './matchDetails'
 import type { MatchEntry, TrainingData } from './model'
+import { recordedRun } from './runningFieldingStats'
 
 export type BattingGame = Pick<MatchEntry, 'id' | 'date' | 'details'>
 
@@ -18,4 +20,19 @@ export const isMatchHistoryEntry = (entry: Entry) => entry.record ? entry.record
 
 export function battingGames(history: readonly Entry[]): BattingGame[] {
   return history.filter(isMatchHistoryEntry).map(({ id, date, match }) => ({ id, date, details: match?.details }))
+}
+
+// History shows counts from saved events. The selected source still governs the stats screen.
+export function matchHistoryCounts(details?: MatchDetails) {
+  const batting = details?.plateAppearances.filter(row => row.status === 'complete' && row.result !== undefined) ?? []
+  const running = details?.baserunning.filter(recordedRun) ?? []
+  const fielding = details?.fielding.filter(row => row.status === 'complete') ?? []
+  return {
+    batting: { confirmed: batting.length || null, drafts: details?.plateAppearances.filter(row => row.status === 'draft').length ?? 0,
+      source: details?.source.batting },
+    running: { confirmed: running.length ? running.filter(row => row.result === 'stolenBase' || row.result === 'caughtStealing').length : null,
+      drafts: details?.baserunning.filter(row => row.status === 'draft').length ?? 0, source: details?.source.baserunning },
+    fielding: { confirmed: fielding.length || null, drafts: details?.fielding.filter(row => row.status === 'draft').length ?? 0,
+      source: details?.source.fielding },
+  }
 }

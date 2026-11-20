@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createAccountStorage } from './accountStorage'
 import { compareBackupCounts, decodeBackup, encodeBackup, replacesMatches, validateData } from './backup'
+import { emptyMatchDetails } from './matchDetails'
 import { initialData } from './initialData'
 import { canEditMatches, deleteMatch, saveMatch, type MatchDraft } from './matches'
 import { Records } from './Records'
@@ -32,7 +33,9 @@ test('同日の試合を別IDで保存し、履歴から振り返りを再表示
   expect(first).toMatchObject({ date: draft.date, good: draft.good.trim(), improve: draft.improve.trim(), createdAt: now.toISOString() })
   expect(data.records).toEqual([])
   const html = renderToStaticMarkup(<Records data={data} commit={vi.fn()} />)
-  expect(html.match(/メニューなしの試合/g)).toHaveLength(2)
+  expect(html.match(/class="match-history-entry"/g)).toHaveLength(2)
+  expect(html).toContain('</time> · 試合 · 同日第1試合')
+  expect(html).toContain('</time> · 試合 · 同日第2試合')
   expect(html).toContain('守備で声を出した')
   expect(html).toContain('次は早めに準備する')
   const saved = await reopened.update(current => saveMatch(current, { ...draft, good: '修正' }, { matchId: first.id }, now))
@@ -124,7 +127,7 @@ test('公開フラグOFFと非ループバックでは新機能の変更を拒�
   expect(() => saveMatch(data, draft, undefined, now)).toThrow('無効')
   expect(() => deleteMatch(data, data.matches![0].id, false)).toThrow('無効')
   const form = renderToStaticMarkup(<Records data={data} commit={vi.fn()} start={{ kind: '試合' }} />)
-  expect(form).toContain('メニューなしの試合')
+  expect(form).toContain('</time> · 試合')
   expect(form).not.toContain('良かったこと（任意）')
   expect(form).not.toContain('>編集</button>')
 })
@@ -143,4 +146,44 @@ test('検証ビルドの試合書き込みは指定したセキュアオリジ�
     expect(() => saveMatch(initialData(), draft, undefined, now)).toThrow('無効')
     expect(() => deleteMatch(data, id, false)).toThrow('無効')
   }
+})
+
+test('履歴は確定イベント、下書き、未記録と簡易集計を区別し、同日試合の操作を個別に表示する', () => {
+  const data = saveMatch(saveMatch(initialData(), draft, undefined, now), draft, undefined, now)
+  const [first, second] = data.matches!
+  const details = emptyMatchDetails()
+  data.matches = [
+    { ...first, details: { ...details, opponent: '青葉クラブ', source: { ...details.source, batting: 'summary' },
+      summary: { batting: { appearances: 8 } },
+      plateAppearances: [{ id: 'p1', order: 1, status: 'complete', result: 'walk' }, { id: 'p2', order: 2, status: 'draft' }],
+      baserunning: [
+        { id: 'r1', order: 1, status: 'complete', from: 'third', to: 'home', result: 'stolenBase' },
+        { id: 'r2', order: 2, status: 'complete', from: 'first', result: 'caughtStealing' },
+        { id: 'r3', order: 3, status: 'complete', from: 'first', to: 'second', result: 'advanced' },
+        { id: 'r4', order: 4, status: 'draft' },
+      ],
+      fielding: [{ id: 'f1', order: 1, status: 'draft' }],
+    } },
+    { ...second, details: { ...details, baserunning: [
+      { id: 'r5', order: 1, status: 'complete', from: 'first', to: 'second', result: 'advanced' },
+    ], fielding: [{ id: 'f2', order: 1, status: 'complete', position: 'SS', playType: 'grounder' }] } },
+  ]
+  const [withOpponent, withoutOpponent] = renderToStaticMarkup(<Records data={data} commit={vi.fn()} />)
+    .split('<li class="match-history-entry">').slice(1)
+  expect(withOpponent).toContain('対 青葉クラブ')
+  expect(withOpponent).toContain('確定打席 1件 · 下書き 1件')
+  expect(withOpponent).toContain('成績は簡易集計')
+  expect(withOpponent).not.toContain('8件')
+  expect(withOpponent).toContain('確定盗塁試行 2件 · 下書き 1件')
+  expect(withOpponent).toContain('確定守備プレー 未記録 · 下書き 1件')
+  expect(withoutOpponent).toContain('確定打席 未記録')
+  expect(withoutOpponent).toContain('確定盗塁試行 0件')
+  expect(withoutOpponent).toContain('確定守備プレー 1件')
+  for (const label of ['打撃', '走塁', '守備']) {
+    expect(withOpponent).toContain(`${label}を記録する`)
+    expect(withOpponent).toContain(`${label}の成績を見る`)
+  }
+  expect(withOpponent).toContain('match-whole-actions')
+  expect(withOpponent).toContain('>試合を編集</button>')
+  expect(withOpponent).toContain('>試合を削除</button>')
 })

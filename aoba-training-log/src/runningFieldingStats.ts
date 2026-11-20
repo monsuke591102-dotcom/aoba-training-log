@@ -35,7 +35,7 @@ function runningRates(counts: RunningCounts): BaserunningStats {
   return { ...counts, stealRate: sb !== null && cs !== null && sb + cs > 0 ? sb / (sb + cs) : null }
 }
 
-function recordedRun(play: BaserunningPlay) {
+export function recordedRun(play: BaserunningPlay) {
   const { status, from, to, result } = play
   if (status !== 'complete' || !from || from === 'home' || !result) return false
   if (result === 'out') return true

@@ -133,6 +133,7 @@ function SyncPanel({ sync }: { sync: SyncView }) {
       ? <time dateTime={sync.lastSynced}>{new Date(sync.lastSynced).toLocaleString('ja-JP')}</time>
       : 'まだありません'}</p>
     {sync.status === '同期エラー' && <p className="hint">未送信の変更は端末に保持されます。通信とログイン状態を確認してください。</p>}
+    {sync.status === '書き込み停止' && <p className="hint">未送信の変更は端末に保持されます。アプリの更新とログイン状態を確認してから、もう一度同期を確認してください。</p>}
     <button className="action edit-menu" type="button" disabled={blocked} onClick={sync.retry}>同期を確認</button>
     {decision && <div className="editor">
       <h3>{decision.kind === 'initial' ? '初回同期で使うデータを選ぶ' : '端末とクラウドの変更が競合しています'}</h3>

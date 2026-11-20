@@ -3,6 +3,8 @@ import { validateData } from './backup'
 import { config } from './cloud'
 import type { RemoteSnapshot, SnapshotApi } from './sync'
 
+export class SnapshotWriteDenied extends Error {}
+
 function readRevision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
     throw new Error('クラウドのrevisionが不正です。')
@@ -35,20 +37,17 @@ export function snapshotApi(session: Session, signal: AbortSignal): SnapshotApi 
       return { data, revision: readRevision(revision) }
     },
     async write(flight) {
-      const create = flight.revision === null
-      const response = await request(create ? 'training_log_snapshots?select=revision' : 'rpc/training_log_update_snapshot', {
+      validateData(flight.data)
+      const response = await request('rpc/training_log_write_snapshot_v2', {
         method: 'POST',
-        headers: create ? { Prefer: 'return=representation' } : undefined,
-        body: JSON.stringify(create
-          ? { data: flight.data }
-          : { expected_revision: flight.revision, new_data: flight.data }),
+        body: JSON.stringify({ expected_revision: flight.revision, new_data: flight.data }),
       })
-      if (create && response.status === 409 && (await response.json()).code === '23505') return null
+      if ([401, 403, 404].includes(response.status)) throw new SnapshotWriteDenied('クラウド同期の書き込みが許可されていません。')
       if (!response.ok) throw new Error('クラウドデータを保存できませんでした。')
       const rows = await response.json()
       if (!Array.isArray(rows) || rows.length !== 1) throw new Error('更新の応答が不正です。')
-      if (!create && rows[0].status === 'conflict') return null
-      if (!create && rows[0].status !== 'updated') throw new Error('更新の応答が不正です。')
+      if (rows[0]?.status === 'conflict' && rows[0].revision === null) return null
+      if (rows[0]?.status !== 'written') throw new Error('更新の応答が不正です。')
       return readRevision(rows[0].revision)
     },
   }

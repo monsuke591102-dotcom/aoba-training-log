@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { createAccountStorage, type AccountState } from './accountStorage'
 import { config } from './cloud'
-import { snapshotApi } from './snapshotApi'
+import { snapshotApi, SnapshotWriteDenied } from './snapshotApi'
 import { chooseSnapshot, syncOnce, type SyncDecision } from './sync'
 import { storage, type Change } from './storage'
 
-export type SyncStatus = '同期済み' | '同期待ち' | '同期中' | 'オフライン' | '同期エラー' | 'データ競合'
+export type SyncStatus = '同期済み' | '同期待ち' | '同期中' | 'オフライン' | '同期エラー' | '書き込み停止' | 'データ競合'
 
 export function useTrainingStorage(session: Session | null) {
   const key = session && config ? config.url + '|' + session.user.id : null
@@ -77,8 +77,12 @@ export function useTrainingStorage(session: Session | null) {
         }
         setStatus('同期待ち')
         retry = window.setTimeout(schedule, 1000)
-      } catch {
+      } catch (error) {
         if (lifetime.signal.aborted) return
+        if (error instanceof SnapshotWriteDenied) {
+          setStatus('書き込み停止')
+          return
+        }
         setStatus(navigator.onLine ? '同期エラー' : 'オフライン')
         failures += 1
         retry = window.setTimeout(schedule, Math.min(60_000, 2000 * 2 ** Math.min(failures, 5)))

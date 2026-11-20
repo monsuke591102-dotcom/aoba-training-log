@@ -5,7 +5,7 @@ import { updateMatchDetails, type MatchTarget } from './matches'
 import { errorMessage, type Commit } from './recordFeedback'
 import { InputError } from './training'
 
-const resultLabels: Record<NonNullable<PlateAppearance['result']>, string> = {
+export const resultLabels: Record<NonNullable<PlateAppearance['result']>, string> = {
   single: '単打', double: '二塁打', triple: '三塁打', homeRun: '本塁打',
   groundOut: 'ゴロアウト', flyOut: 'フライアウト', lineOut: 'ライナーアウト', popOut: 'ポップフライアウト',
   doublePlay: '併殺', triplePlay: '三重殺', strikeoutSwinging: '空振り三振', strikeoutLooking: '見逃し三振',

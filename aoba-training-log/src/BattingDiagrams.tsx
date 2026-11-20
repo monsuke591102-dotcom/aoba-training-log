@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent, PropsWithChildren } from 'react'
 import type { Pitch, PitchLocation, PlateAppearance } from './matchDetails'
 
 const rows = ['高め', '中央', '低め'] as const
@@ -60,6 +60,19 @@ export const normalizeFieldPoint = (x: number, y: number, width: number, height:
   x: clamp(x / width), y: clamp(y / height),
 })
 
+export function BallFieldDrawing({ children }: PropsWithChildren) {
+  return <svg viewBox="0 0 300 260" aria-hidden="true">
+    <path d="M150 237 20 105Q51 22 150 17q99 5 130 88Z" fill="#285f48" stroke="#9ad1a5" strokeWidth="3" />
+    <path d="M150 237 55 138 150 47l95 91Z" fill="#337653" />
+    <path d="M150 238 91 179l59-59 59 59Z" fill="#b18757" stroke="#e4c187" strokeWidth="4" />
+    <path d="m150 217-39-38 39-39 39 39Z" fill="#397853" />
+    <path d="M150 237 20 105m130 132 130-132" stroke="#ecf1dd" strokeWidth="2" />
+    <path d="m150 122 6 6-6 6-6-6Zm53 53 6 6-6 6-6-6Zm-106 0 6 6-6 6-6-6Z" fill="#f2f4ec" />
+    <circle cx="150" cy="182" r="10" fill="#b18757" /><path d="M145 234h10v5l-5 4-5-4Z" fill="#fff" />
+    {children}
+  </svg>
+}
+
 export function BallField({ point, onSelect }: { point?: FieldPoint; onSelect: (point?: FieldPoint) => void }) {
   function tap(event: MouseEvent<HTMLButtonElement>) {
     if (event.detail === 0) {
@@ -84,19 +97,12 @@ export function BallField({ point, onSelect }: { point?: FieldPoint; onSelect: (
     <figcaption>打球位置 · 上から見た球場</figcaption>
     <button type="button" className="ball-field" aria-label="球場図で打球位置を指定" aria-describedby="ball-field-help"
       onClick={tap} onKeyDown={move}>
-      <svg viewBox="0 0 300 260" aria-hidden="true">
-        <path d="M150 237 20 105Q51 22 150 17q99 5 130 88Z" fill="#285f48" stroke="#9ad1a5" strokeWidth="3" />
-        <path d="M150 237 55 138 150 47l95 91Z" fill="#337653" />
-        <path d="M150 238 91 179l59-59 59 59Z" fill="#b18757" stroke="#e4c187" strokeWidth="4" />
-        <path d="m150 217-39-38 39-39 39 39Z" fill="#397853" />
-        <path d="M150 237 20 105m130 132 130-132" stroke="#ecf1dd" strokeWidth="2" />
-        <path d="m150 122 6 6-6 6-6-6Zm53 53 6 6-6 6-6-6Zm-106 0 6 6-6 6-6-6Z" fill="#f2f4ec" />
-        <circle cx="150" cy="182" r="10" fill="#b18757" /><path d="M145 234h10v5l-5 4-5-4Z" fill="#fff" />
+      <BallFieldDrawing>
         {point && <g>
           <line x1="150" y1="237" x2={point.x * 300} y2={point.y * 260} stroke="#ffdc83" strokeWidth="2.5" strokeDasharray="5 4" />
           <circle cx={point.x * 300} cy={point.y * 260} r="7" fill="#ffdc83" stroke="#15243d" strokeWidth="2.5" />
         </g>}
-      </svg>
+      </BallFieldDrawing>
     </button>
     <p className="hint" id="ball-field-help">図をタップ。キーボードでは矢印で移動、Shift＋矢印で微調整できます。位置は目安です。</p>
     <p className="hint" role="status">{point ? `選択位置：左から ${Math.round(point.x * 100)}%、上から ${Math.round(point.y * 100)}%` : '打球位置は未入力'}</p>

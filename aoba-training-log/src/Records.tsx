@@ -9,6 +9,7 @@ import { localDate } from './dates'
 import { deleteRecord, InputError, saveRecord, trainingKinds } from './training'
 import { canEditMatches, deleteMatch, saveMatch, type MatchDraft } from './matches'
 import { BattingEditor } from './BattingEditor'
+import { BattingStatsView } from './BattingStatsView'
 
 export function rejectInvalidNumber(form: HTMLFormElement) {
   if (Array.from(form.querySelectorAll<HTMLInputElement>('input[type="number"]')).some(input => input.validity.badInput)) {
@@ -97,6 +98,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
   const [editing, setEditing] = useState<string | null>(start ? start.id ? 'record:' + start.id : '' : null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [batting, setBatting] = useState<string | null>(null)
+  const [battingStats, setBattingStats] = useState<string>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const editMatches = canEditMatches()
@@ -135,6 +137,18 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       target={battingEntry.record ? { recordId: battingEntry.record.id } : { matchId: battingEntry.match!.id }}
       appearances={battingEntry.match?.details?.plateAppearances ?? []} />
   }
+  const isMatch = (entry: typeof history[number]) => entry.record ? entry.record.kind === '試合' : Boolean(entry.match)
+  if (editMatches && battingStats) {
+    const games = history.filter(isMatch).map(({ id, date, match }) => ({ id, date, details: match?.details }))
+    const game = games.find(row => row.id === battingStats)
+    if (battingStats === 'total' || game) return <BattingStatsView games={games} game={game}
+      onClose={() => setBattingStats(undefined)} />
+  }
+
+  function openBattingStats(id: string) {
+    setBattingStats(id)
+    window.scrollTo(0, 0)
+  }
 
   return (
     <>
@@ -146,6 +160,8 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       </section>
       <section className="card">
         <h2>練習履歴</h2>
+        {editMatches && editing === null && history.some(isMatch) &&
+          <button type="button" className="action" onClick={() => openBattingStats('total')}>通算打撃成績</button>}
         {history.length === 0 && <p className="hint">まだ記録がありません。</p>}
         <ul className="entries">
           {history.map(({ id, record, match, date }) => (
@@ -158,6 +174,8 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
               {record?.note && <p className="entry-note">{record.note}</p>}
               {match?.good && <p className="entry-note"><strong>良かったこと</strong> {match.good}</p>}
               {match?.improve && <p className="entry-note"><strong>改善したいこと</strong> {match.improve}</p>}
+              {editMatches && editing === null && deleting !== id && (record?.kind === '試合' || (!record && match)) &&
+                <button type="button" className="action" onClick={() => openBattingStats(id)}>打撃成績</button>}
               {deleting === id
                 ? <div className="confirmation" role="group" aria-label="削除の確認">
                     <p>この練習記録を削除しますか？</p>

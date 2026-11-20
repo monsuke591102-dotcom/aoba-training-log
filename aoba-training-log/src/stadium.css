@@ -272,6 +272,27 @@
   background: #102b3c; cursor: crosshair; touch-action: manipulation;
 }
 .ball-field svg { display: block; width: 100%; height: auto; overflow: visible; }
+.batting-stats { min-width: 0; }
+.batting-stats h2, .batting-stats h3 { margin-block: 14px 8px; }
+.batting-stats .action { min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.batting-stat-rates, .batting-stat-counts { display: grid; gap: 8px; margin-block: 12px; }
+.batting-stat-rates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.batting-stat-rates > div, .batting-stat-counts > div {
+  min-width: 0; border: 1px solid #45648a; background: #102641; border-radius: 8px;
+  padding: 8px 10px; overflow-wrap: anywhere;
+}
+.batting-stat-rates dt { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; color: #bed8f6; }
+.batting-stat-rates dt small { font-size: .875rem; }
+.batting-stat-rates dd { margin: 0; font-size: 1.65rem; color: #ffdd91; font-weight: 800; }
+.batting-stat-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.batting-stat-counts > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
+.batting-stat-counts dd { margin: 0; font-weight: 700; }
+.batting-stat-rates dd, .batting-stat-counts dd { font-variant-numeric: tabular-nums; }
+.batting-stat-help summary { min-height: 44px; align-content: center; cursor: pointer; }
+.batting-stat-help ul { padding-inline-start: 1.25em; color: #c5d8ef; }
+.batting-stat-map { cursor: default; }
+.batting-stat-hits { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; list-style: none; }
+.batting-stat-hits [aria-pressed="true"] { border-color: #ffd27b; color: #ffefbd; font-weight: 700; }
 .routine-menu-options { display: grid; gap: 4px; padding-top: 6px; }
 .routine-menu-options .action {
   display: flex;

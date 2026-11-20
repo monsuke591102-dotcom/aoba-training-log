@@ -21,7 +21,13 @@ const advanceReasons = ['hit', 'walk', 'hitByPitch', 'steal', 'wildPitch', 'pass
   'sacrifice', 'balk', 'tagUp', 'other'] as const
 const runningResults = ['advanced', 'stolenBase', 'caughtStealing', 'out', 'scored'] as const
 export const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'] as const
-const playTypes = ['grounder', 'liner', 'fly', 'bunt', 'throw', 'tag', 'force', 'cover', 'other'] as const
+const battedFieldingTypes = ['grounder', 'liner', 'fly', 'bunt'] as const
+const legacyFieldingTypes = [...battedFieldingTypes, 'throw', 'tag', 'force', 'cover', 'other'] as const
+export const fieldingPlayTypes = [...battedFieldingTypes, 'noBall'] as const
+const noBallKinds = ['pickoff', 'caughtStealing', 'other'] as const
+const fieldingCatchResults = ['success', 'failure', 'notApplicable'] as const
+const fieldingThrowResults = ['success', 'error', 'notApplicable'] as const
+const fieldingOutcomes = ['out', 'safe', 'notApplicable'] as const
 const fieldingCredits = ['putout', 'assist', 'error'] as const
 const skills = ['catching', 'throwing', 'baseCover', 'judgment', 'other'] as const
 const sources = ['events', 'summary'] as const
@@ -64,10 +70,20 @@ export type BaserunningPlay = DraftableRow & Reflection & {
 }
 
 export type PositionChange = OrderedRow & { position: Position; inning?: number }
+export type FieldingOpportunity = {
+  inning?: number
+  noBallKind?: typeof noBallKinds[number]
+  catchResult?: typeof fieldingCatchResults[number]
+  throwResult?: typeof fieldingThrowResults[number]
+  outcome?: typeof fieldingOutcomes[number]
+}
+
 export type FieldingPlay = DraftableRow & Reflection & {
   plateAppearanceId?: string
   position?: Position
-  playType?: typeof playTypes[number]
+  playType?: typeof legacyFieldingTypes[number] | 'noBall'
+  // Absent on existing plays until a play-specific value is explicitly recorded.
+  opportunity?: FieldingOpportunity
   fieldPoint?: PlateAppearance['fieldPoint']
   credits?: (typeof fieldingCredits[number])[]
   development?: { skill: typeof skills[number]; note: string }[]
@@ -80,7 +96,7 @@ type SummaryCounts = {
 }
 
 export interface MatchDetails {
-  version: 1 | 2
+  version: 1 | 2 | 3
   opponent?: string
   // A consumer counts only the selected source per discipline, and skips drafts.
   source: { [K in keyof SummaryCounts]-?: typeof sources[number] }
@@ -126,7 +142,7 @@ const draftable = (row: Row) => oneOf(row.status, ['draft', 'complete']) &&
 const pitchLocation = (v: unknown, version: MatchDetails['version']) => object(v) && (
   v.zone === 'inside' && count(v.row, 0, 2) && count(v.column, 0, 2) ||
   v.zone === 'outside' && oneOf(v.side, outsideSides) ||
-  version === 2 && v.zone === 'point' && fieldPoint(v)
+  version >= 2 && v.zone === 'point' && fieldPoint(v)
 )
 const pitchType = (v: unknown) => object(v) && id(v.id) &&
   typeof v.name === 'string' && v.name.trim().length > 0 && optional(v.symbol, text)
@@ -154,8 +170,22 @@ export function needsPitchDetailsV2(plate: PlateAppearance) {
     pitch.result === 'hit' || pitch.result === 'inPlayNonHit') ?? false
 }
 
+export function fieldingOpportunityError(play: Pick<FieldingPlay, 'opportunity' | 'playType' | 'status'>) {
+  const { opportunity, playType, status } = play
+  if (!opportunity) return
+  if (opportunity.inning !== undefined && !count(opportunity.inning, 1)) {
+    return 'イニングは1以上の整数で入力してください。'
+  }
+  if (status === 'complete' && opportunity.inning === undefined) {
+    return 'イニングを入力してください。'
+  }
+  if (status === 'complete' && oneOf(playType, battedFieldingTypes) && opportunity.outcome === undefined) {
+    return 'プレー結果でアウト・セーフ・結果対象外のいずれかを選んでください。'
+  }
+}
+
 export function isMatchDetails(value: unknown): value is MatchDetails {
-  if (!object(value) || (value.version !== 1 && value.version !== 2) || !optional(value.opponent, text) || !object(value.source) ||
+  if (!object(value) || (value.version !== 1 && value.version !== 2 && value.version !== 3) || !optional(value.opponent, text) || !object(value.source) ||
     !oneOf(value.source.batting, sources) || !oneOf(value.source.baserunning, sources) || !oneOf(value.source.fielding, sources)) return false
   if (!optional(value.summary, summary => object(summary) &&
     optional(summary.batting, v => summaryFields(v, ['appearances', 'hits', 'rbi'])) &&
@@ -171,7 +201,7 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
     optional(row.outs, v => count(v, 0, 2)) &&
     optional(row.errorPosition, v => row.result === 'reachedOnError' && oneOf(v, positions)) &&
     optional(row.pitchCount, count) && optional(row.beforeFinalPitch, v => object(v) && count(v.balls, 0, 3) && count(v.strikes, 0, 2)) &&
-    optional(row.pitches, v => rows(v, pitch => pitchType(pitch.type) && oneOf(pitch.result, version === 2 ? pitchResults : legacyPitchResults) &&
+    optional(row.pitches, v => rows(v, pitch => pitchType(pitch.type) && oneOf(pitch.result, version >= 2 ? pitchResults : legacyPitchResults) &&
       pitchLocation(pitch.location, version), ids)) && !pitchResultError(row as PlateAppearance), ids)) return false
 
   const appearances = new Set((value.plateAppearances as PlateAppearance[]).map(row => row.id))
@@ -187,7 +217,15 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
     rows(value.positionChanges, row => oneOf(row.position, positions) && optional(row.inning, v => count(v, 1)), ids) &&
     rows(value.fielding, row => draftable(row) && linked(row) &&
       (row.status === 'draft' || (row.position !== undefined && row.playType !== undefined)) &&
-      optional(row.position, v => oneOf(v, positions)) && optional(row.playType, v => oneOf(v, playTypes)) &&
+      optional(row.position, v => oneOf(v, positions)) &&
+      optional(row.playType, v => oneOf(v, legacyFieldingTypes) || (version === 3 && v === 'noBall' && row.opportunity !== undefined)) &&
+      optional(row.opportunity, v => version === 3 && object(v) &&
+        optional(v.inning, n => count(n, 1)) &&
+        optional(v.noBallKind, kind => row.playType === 'noBall' && oneOf(kind, noBallKinds)) &&
+        optional(v.catchResult, result => oneOf(result, fieldingCatchResults)) &&
+        optional(v.throwResult, result => oneOf(result, fieldingThrowResults)) &&
+        optional(v.outcome, result => oneOf(result, fieldingOutcomes))) &&
+      !fieldingOpportunityError(row as FieldingPlay) &&
       optional(row.fieldPoint, fieldPoint) &&
       optional(row.credits, v => Array.isArray(v) && new Set(v).size === v.length && v.every(c => oneOf(c, fieldingCredits))) &&
       optional(row.development, v => Array.isArray(v) && v.every(s => object(s) && oneOf(s.skill, skills) && text(s.note))), ids)

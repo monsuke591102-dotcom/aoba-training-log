@@ -67,8 +67,10 @@ export function updateMatchDetails(data: TrainingData, target: MatchTarget,
     : matches.find(row => row.recordId === target.recordId)
   if (!previous && !record) throw new InputError('試合記録が見つかりません。')
   const edited = edit(previous?.details ? structuredClone(previous.details) : emptyMatchDetails())
-  const details: MatchDetails = edited.version === 1 && edited.plateAppearances.some(needsPitchDetailsV2)
-    ? { ...edited, version: 2 } : edited
+  let version = edited.version
+  if (version < 3 && edited.fielding.some(row => row.opportunity !== undefined)) version = 3
+  if (version === 1 && edited.plateAppearances.some(needsPitchDetailsV2)) version = 2
+  const details = version === edited.version ? edited : { ...edited, version }
   if (!isMatchDetails(details)) throw new InputError('試合詳細に不正な項目または重複があります。')
   const timestamp = now.toISOString()
   const entry: MatchEntry = previous

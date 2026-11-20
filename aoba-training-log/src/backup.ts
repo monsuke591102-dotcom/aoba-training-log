@@ -8,11 +8,12 @@ const appId = 'aoba-training-log'
 const backupVersion = 1
 const detailedBackupVersion = 2
 const pitchBackupVersion = 3
+const fieldingBackupVersion = 4
 const dataVersion: TrainingData['schemaVersion'] = 3
 
 export interface Backup {
   appId: typeof appId
-  backupVersion: typeof backupVersion | typeof detailedBackupVersion | typeof pitchBackupVersion
+  backupVersion: typeof backupVersion | typeof detailedBackupVersion | typeof pitchBackupVersion | typeof fieldingBackupVersion
   createdAt: string
   dataVersion: typeof dataVersion
   data: TrainingData
@@ -137,6 +138,7 @@ export function validateData(data: unknown): asserts data is TrainingData {
 }
 
 function backupVersionFor(data: TrainingData): Backup['backupVersion'] {
+  if (data.matches?.some(match => match.details?.version === 3)) return fieldingBackupVersion
   if (data.matches?.some(match => match.details?.version === 2)) return pitchBackupVersion
   return hasMatchDetails(data) ? detailedBackupVersion : backupVersion
 }
@@ -157,7 +159,7 @@ export function decodeBackup(text: string): Backup {
   }
   if (!object(value) || value.appId !== appId) throw new BackupError('AOBA TRAINING LOGのバックアップを選んでください。')
   if ((value.backupVersion !== backupVersion && value.backupVersion !== detailedBackupVersion &&
-    value.backupVersion !== pitchBackupVersion) || value.dataVersion !== dataVersion) {
+    value.backupVersion !== pitchBackupVersion && value.backupVersion !== fieldingBackupVersion) || value.dataVersion !== dataVersion) {
     throw new BackupError('このバックアップのバージョンには対応していません。')
   }
   if (!string(value.createdAt) || !timestamp(value.createdAt)) throw new BackupError('バックアップの作成日時が不正です。')

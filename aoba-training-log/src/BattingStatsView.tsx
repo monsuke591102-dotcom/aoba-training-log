@@ -51,8 +51,8 @@ function StatsCard({ stats }: { stats: BattingStats }) {
       <summary>「—」になる理由</summary>
       <ul>
         <li>打数などの記録がない、または率の分母が0の場合は「—」です。算出できた0は「0」または「.000」と表示します。</li>
-        <li>簡易集計から利用できるのは、入力済みの打席数・安打数です。確定済みの詳細打席と重ねて数えません。</li>
-        <li>打点は現在の記録項目から確定できないため「—」です。</li>
+        <li>簡易集計では、入力済みの打席数・安打数・打点を使います。確定済みの詳細打席と重ねて数えません。</li>
+        {stats.rbi === null && <li>詳細記録では確定打席すべてに打点の入力が必要です。簡易集計の打点がない試合や、打点が揃わない通算は「—」です。</li>}
       </ul>
     </details>
   </>
@@ -119,7 +119,7 @@ export function BattingStatsView({ games, game, onClose, backLabel = '練習履�
       : <p className="hint">対象 {rows.length}試合 · 打席数または安打数の記録あり {recorded}試合<br />
         {dates.length ? `対象期間 ${dates[0]} ～ ${dates.at(-1)}` : '対象期間 —'}</p>}
     {!game && <p className="hint">対象試合すべてで値が揃った項目を合算します。欠けている項目の通算値と、必要な値が揃わない率は「—」です。</p>}
-    {recorded === 0 && <p className="hint">集計できる打撃記録がありません。</p>}
+    {recorded === 0 && summaries.every(summary => summary.rbi === null) && <p className="hint">集計できる打撃記録がありません。</p>}
     <StatsCard stats={stats} />
     {game && <HitLocations key={game.id} game={game} />}
   </section>

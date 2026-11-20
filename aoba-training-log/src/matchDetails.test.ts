@@ -22,11 +22,11 @@ function fixture() {
     source: { batting: 'events', baserunning: 'summary', fielding: 'events' },
     summary: { baserunning: { runs: 0 } },
     plateAppearances: [
-      { ...plate, fieldPoint: { x: 0, y: 1 }, pitchCount: 0, beforeFinalPitch: { balls: 0, strikes: 0 } },
+      { ...plate, rbi: 0, fieldPoint: { x: 0, y: 1 }, pitchCount: 0, beforeFinalPitch: { balls: 0, strikes: 0 } },
       { id: 'pa-2', order: 2, status: 'complete', result: 'strikeoutLooking', bunt: 'failed',
         pitches: [{ id: 'pitch-1', order: 1, type: { ...initialPitchTypes[0] }, result: 'calledStrike',
           location: { zone: 'inside', row: 0, column: 2 } }] },
-      { id: 'pa-3', order: 3, status: 'draft' },
+      { id: 'pa-3', order: 3, status: 'draft', rbi: 4 },
     ],
     baserunning: [{ id: 'run-1', order: 1, status: 'complete', from: 'third', to: 'home',
       reason: 'steal', result: 'stolenBase', reflection: 'スタート' }],
@@ -56,6 +56,7 @@ test('旧形式を読み続け、詳細・未確定の打席・投球なし・0�
   expect(reloaded.matches?.[0].details?.plateAppearances[0].pitches).toBeUndefined()
   expect(reloaded.matches?.[0].details?.plateAppearances[0].pitchCount).toBe(0)
   expect(reloaded.matches?.[0].details?.plateAppearances[1].pitchCount).toBeUndefined()
+  expect(reloaded.matches?.[0].details?.plateAppearances.map(row => row.rbi)).toEqual([0, undefined, 4])
 })
 
 test('打席の更新は別打席、走塁・守備、親の既存IDに影響しない', () => {
@@ -104,6 +105,10 @@ test.each([
   ['空白を含むID', { ...plate, id: 'bad id' }],
   ['範囲外の座標', { ...plate, fieldPoint: { x: -0.001, y: 0 } }],
   ['不明な結果', { ...plate, result: 'unknown' }],
+  ['負の打点', { ...plate, rbi: -1 }],
+  ['小数の打点', { ...plate, rbi: 1.5 }],
+  ['文字列の打点', { ...plate, rbi: '1' }],
+  ['安全な整数範囲を超えた打点', { ...plate, rbi: Number.MAX_SAFE_INTEGER + 1 }],
   ['範囲外のカウント', { ...plate, beforeFinalPitch: { balls: 4, strikes: 0 } }],
   ['範囲外のストライクゾーン', { ...plate, pitches: [
     { id: 'pitch-2', order: 1, type: initialPitchTypes[1], result: 'ball', location: { zone: 'inside', row: 3, column: 0 } },

@@ -112,6 +112,7 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   })
   const [extraPitch, setExtraPitch] = useState('')
   const [pitchCount, setPitchCount] = useState(plate.pitchCount?.toString() ?? '')
+  const [rbiInput, setRbiInput] = useState(plate.rbi?.toString() ?? '')
   const [balls, setBalls] = useState(plate.beforeFinalPitch?.balls.toString() ?? '')
   const [strikes, setStrikes] = useState(plate.beforeFinalPitch?.strikes.toString() ?? '')
   const [error, setError] = useState('')
@@ -140,9 +141,16 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     if ((balls === '') !== (strikes === '')) { setTab(0); setError('最終投球前カウントはBとSを両方指定してください。'); return }
     if (status === 'complete' && !plate.result) { setTab(1); setError(missingResult); return }
     if (pitchCount.trim() && !/^\d+$/.test(pitchCount.trim())) { setTab(0); setError('球数は0以上の整数で入力してください。'); return }
+    const rbiText = rbiInput.trim()
+    const rbi = rbiText === '' ? undefined : Number(rbiText)
+    if (rbi !== undefined && (!/^\d+$/.test(rbiText) || !Number.isSafeInteger(rbi))) {
+      setTab(1)
+      setError('打点は0以上の正確に記録できる整数で入力してください。')
+      return
+    }
     pending.current = true
     setBusy(true)
-    const next = { ...plate, status, pitchCount: pitchCount.trim() ? Number(pitchCount) : undefined,
+    const next = { ...plate, status, rbi, pitchCount: pitchCount.trim() ? Number(pitchCount) : undefined,
       beforeFinalPitch: balls === '' ? undefined : { balls: Number(balls), strikes: Number(strikes) } }
     try {
       await commit(data => updateMatchDetails(data, target, details => {
@@ -232,6 +240,11 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
             update({ result, errorPosition: result === 'reachedOnError' ? plate.errorPosition : undefined })
             if (result && error === missingResult) setError('')
           }}><option value="">未入力</option>{Object.entries(resultLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>打点（RBI・任意）
+            <input inputMode="numeric" value={rbiInput} onChange={event => setRbiInput(event.target.value)}
+              aria-describedby={tabId + '-rbi-hint'} />
+          </label>
+          <p className="hint" id={tabId + '-rbi-hint'}>公式記録の打点を入力します。打点なしと確認できた場合は「0」、未確認の場合は空欄にします。</p>
           {plate.result === 'reachedOnError' && <label>失策した守備位置（任意）
             <select value={plate.errorPosition ?? ''} onChange={event => update({ errorPosition: (event.target.value || undefined) as PlateAppearance['errorPosition'] })}>
               <option value="">未入力</option>{positions.map(position => <option key={position} value={position}>{positionLabels[position]}</option>)}

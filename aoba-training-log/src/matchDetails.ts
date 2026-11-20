@@ -40,6 +40,7 @@ export type Pitch = OrderedRow & { type: PitchTypeSnapshot; result: typeof pitch
 
 export type PlateAppearance = DraftableRow & Reflection & {
   result?: typeof plateResults[number]
+  rbi?: number
   bunt?: typeof buntResults[number]
   battedBall?: typeof battedBallTypes[number]
   // Normalized coordinates from the top-left of the field diagram, both inclusive.
@@ -70,7 +71,7 @@ export type FieldingPlay = DraftableRow & Reflection & {
 }
 
 type SummaryCounts = {
-  batting?: { appearances?: number; hits?: number }
+  batting?: { appearances?: number; hits?: number; rbi?: number }
   baserunning?: { advances?: number; steals?: number; caughtStealing?: number; outs?: number; runs?: number }
   fielding?: { putouts?: number; assists?: number; errors?: number }
 }
@@ -131,7 +132,7 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
   if (!object(value) || value.version !== 1 || !optional(value.opponent, text) || !object(value.source) ||
     !oneOf(value.source.batting, sources) || !oneOf(value.source.baserunning, sources) || !oneOf(value.source.fielding, sources)) return false
   if (!optional(value.summary, summary => object(summary) &&
-    optional(summary.batting, v => summaryFields(v, ['appearances', 'hits'])) &&
+    optional(summary.batting, v => summaryFields(v, ['appearances', 'hits', 'rbi'])) &&
     optional(summary.baserunning, v => summaryFields(v, ['advances', 'steals', 'caughtStealing', 'outs', 'runs'])) &&
     optional(summary.fielding, v => summaryFields(v, ['putouts', 'assists', 'errors'])))) return false
 
@@ -139,7 +140,7 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
   if (!rows(value.plateAppearances, row => draftable(row) &&
     (row.status === 'complete' ? oneOf(row.result, plateResults) : optional(row.result, v => oneOf(v, plateResults))) &&
     optional(row.bunt, v => oneOf(v, buntResults)) && optional(row.battedBall, v => oneOf(v, battedBallTypes)) &&
-    optional(row.fieldPoint, fieldPoint) &&
+    optional(row.fieldPoint, fieldPoint) && optional(row.rbi, count) &&
     optional(row.outs, v => count(v, 0, 2)) &&
     optional(row.errorPosition, v => row.result === 'reachedOnError' && oneOf(v, positions)) &&
     optional(row.pitchCount, count) && optional(row.beforeFinalPitch, v => object(v) && count(v.balls, 0, 3) && count(v.strikes, 0, 2)) &&

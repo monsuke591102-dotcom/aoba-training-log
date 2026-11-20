@@ -82,3 +82,28 @@ test('複数試合の実数から率を再計算し、全試合の値が揃っ�
   expect(aggregateBattingStats([first, calculateMatchBattingStats({})])).toMatchObject({ pa: null, h: null })
   expect(aggregateBattingStats([])).toEqual(calculateMatchBattingStats({}))
 })
+
+test('確定打席すべての打点が揃ったときだけ合計し、下書きと走塁の得点を除外する', () => {
+  const details = match('reachedOnError', 'sacrificeFly', 'homeRun').details
+  const recorded = details.plateAppearances.map((row, index) => ({ ...row, rbi: [0, 1, 4][index] }))
+  const game: MatchDetails = {
+    ...details,
+    plateAppearances: [...recorded, { id: 'draft', order: 4, status: 'draft', rbi: 3 }],
+    baserunning: [{ id: 'run', order: 1, status: 'complete', from: 'third', to: 'home', result: 'scored' }],
+  }
+  expect(calculateMatchBattingStats({ details: game }).rbi).toBe(5)
+  expect(calculateMatchBattingStats({ details: { ...game, plateAppearances: recorded.slice(0, 1) } }).rbi).toBe(0)
+  expect(calculateMatchBattingStats({ details: { ...game, plateAppearances: [...recorded, { ...details.plateAppearances[0], id: 'old', order: 4 }] } }).rbi).toBeNull()
+})
+
+test('簡易打点と詳細打点は選択された集計元だけを使い、通算でも不足を保持する', () => {
+  const base = match('single').details
+  const details: MatchDetails = { ...base, plateAppearances: [{ ...base.plateAppearances[0], rbi: 1 }],
+    summary: { batting: { rbi: 4 } } }
+  const events = calculateMatchBattingStats({ details })
+  const summary = calculateMatchBattingStats({ details: { ...details, source: { ...base.source, batting: 'summary' } } })
+  expect(events.rbi).toBe(1)
+  expect(summary.rbi).toBe(4)
+  expect(aggregateBattingStats([events, summary]).rbi).toBe(5)
+  expect(aggregateBattingStats([events, calculateMatchBattingStats({ details: base })]).rbi).toBeNull()
+})

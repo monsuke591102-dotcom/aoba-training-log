@@ -56,14 +56,16 @@ export function calculateMatchBattingStats(match: Pick<MatchEntry, 'details'>): 
   if (!details) return rates(counts(null))
   if (details.source.batting === 'summary') {
     const summary = details.summary?.batting
-    return rates({ ...counts(null), pa: summary?.appearances ?? null, h: summary?.hits ?? null })
+    return rates({ ...counts(null), pa: summary?.appearances ?? null, h: summary?.hits ?? null, rbi: summary?.rbi ?? null })
   }
 
   const totals = counts<number>(0)
-  for (const { status, result } of details.plateAppearances) {
+  let rbi: number | null = 0
+  for (const { status, result, rbi: recordedRbi } of details.plateAppearances) {
     if (status !== 'complete' || result === undefined) continue
     const rule = rules[result]
     totals.pa++
+    rbi = rbi === null || recordedRbi === undefined ? null : rbi + recordedRbi
     if (rule.atBat) totals.ab++
     if (rule.bases !== undefined) {
       totals.h++
@@ -72,7 +74,7 @@ export function calculateMatchBattingStats(match: Pick<MatchEntry, 'details'>): 
     if (rule.strikeout) totals.so++
     if (rule.count) totals[rule.count]++
   }
-  return rates(totals.pa ? { ...totals, rbi: null } : counts(null))
+  return rates(totals.pa ? { ...totals, rbi: Number.isSafeInteger(rbi) ? rbi : null } : counts(null))
 }
 
 /** Unknown counts in any included match make that period total unknown. */
@@ -80,5 +82,6 @@ export function aggregateBattingStats(matches: readonly BattingStats[]): Batting
   if (!matches.length) return rates(counts(null))
   const totals = counts<number | null>(null)
   for (const key of countKeys) totals[key] = sum(matches.map(match => match[key]))
+  if (!Number.isSafeInteger(totals.rbi)) totals.rbi = null
   return rates(totals)
 }

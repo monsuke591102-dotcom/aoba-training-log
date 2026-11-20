@@ -23,7 +23,7 @@ const view = (kind: RunningFieldingKind, games: BattingGame[], selected?: Battin
 test('試合の盗塁と得点、本盗、記録済みの走塁アウト0を表示する', () => {
   const html = view('running', [game], game)
   expect(html).toContain('試合の走塁成績')
-  expect(html).toContain('盗塁成功率</dt><dd>.500')
+  expect(html).toContain('盗塁成功率</dt><dd>50%')
   expect(html).toContain('盗塁成功 SB</dt><dd>1')
   expect(html).toContain('得点 R</dt><dd>1')
   expect(html).toContain('その他の走塁アウト</dt><dd>0')
@@ -51,7 +51,7 @@ test('通算は実数で合算し、一部試合不足で位置別や率を未�
     baserunning: [{ id: 'r3', order: 1, status: 'complete', from: 'first', to: 'second', result: 'stolenBase' }],
   } }
   expect(view('fielding', [game, second])).toContain('守備率 FPCT</dt><dd>.750')
-  expect(view('running', [game, second])).toContain('盗塁成功率</dt><dd>.667')
+  expect(view('running', [game, second])).toContain('盗塁成功率</dt><dd>66.7%')
   const html = view('fielding', [game, { id: 'missing', date: '2026-11-20' }])
   expect(html).toContain('通算守備成績')
   expect(html).toContain('対象 2試合 · 公式成績の記録あり 1試合')
@@ -66,7 +66,7 @@ test('簡易のアウト内訳と守備位置は推測せず、明示された0�
     summary: { baserunning: { steals: 0, caughtStealing: 2, outs: 4 }, fielding: { putouts: 0 } },
   } }
   const running = view('running', [simple], simple)
-  expect(running).toContain('盗塁成功率</dt><dd>.000')
+  expect(running).toContain('盗塁成功率</dt><dd>0%')
   expect(running).toContain('その他の走塁アウト</dt><dd>—')
   const fielding = view('fielding', [simple], simple)
   expect(fielding).toContain('刺殺 PO</dt><dd>0')

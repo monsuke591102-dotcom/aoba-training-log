@@ -19,8 +19,10 @@ function CountCards({ rows }: { rows: readonly (readonly [string, number | strin
   </dl>
 }
 
-function RateCard({ label, value }: { label: string; value: number | null }) {
-  return <dl className="batting-stat-rates"><div><dt>{label}</dt><dd>{formatRate(value)}</dd></div></dl>
+const stealPercent = new Intl.NumberFormat('ja-JP', { style: 'percent', maximumFractionDigits: 1 })
+
+function RateCard({ label, value, format = formatRate }: { label: string; value: number | null; format?: typeof formatRate }) {
+  return <dl className="batting-stat-rates"><div><dt>{label}</dt><dd>{format(value)}</dd></div></dl>
 }
 
 function fieldingRows(line: FieldingLine) {
@@ -83,13 +85,14 @@ export function RunningFieldingStatsView({ kind, games, game, onClose }: {
       {game ? game.date : dates.length ? `対象期間 ${dates[0]} ～ ${dates.at(-1)}` : '対象期間 —'}</p>
     {!game && <p className="hint">対象試合すべてで値が揃った項目を合算します。欠けている項目の通算値と必要な値が揃わない率は「—」です。</p>}
     {running ? <>
-      <RateCard label="盗塁成功率" value={run.stealRate} />
-      <CountCards rows={[[ '盗塁成功 SB', run.sb ], [ '盗塁失敗 CS', run.cs ], [ '得点 R', run.r ], [ 'その他の走塁アウト', run.otherOuts ]]} />
+      <RateCard label="盗塁成功率" value={run.stealRate}
+        format={value => value === null ? '—' : stealPercent.format(value)} />
+      <CountCards rows={[[ '盗塁成功 SB', run.sb ], [ '盗塁死 CS', run.cs ], [ '得点 R', run.r ], [ 'その他の走塁アウト', run.otherOuts ]]} />
     </> : <FieldingBreakdown stats={field} games={rows} />}
     <details className="batting-stat-help">
       <summary>「—」になる理由</summary>
-      <p>未記録の項目や分母が0の率は「—」です。集計できた0は「0」または「.000」と表示します。</p>
-      {running ? <p>盗塁成功率には成功と失敗の両方の記録が必要です。簡易記録のアウトは盗塁失敗を含むか未確定のため、その他の走塁アウトには使用しません。</p>
+      <p>未記録の項目や分母が0の率は「—」です。集計できた0は「0」または「{running ? '0%' : '.000'}」と表示します。</p>
+      {running ? <p>盗塁成功率は盗塁成功数を試行数（成功数＋盗塁死数）で割って算出します。試行がない場合や、どちらかの件数が不明な場合は「—」です。簡易記録のアウトは盗塁失敗を含むか未確定のため、その他の走塁アウトには使用しません。</p>
         : <p>簡易集計に守備位置の内訳はありません。育成観察は刺殺・補殺・失策や守備率に加えません。</p>}
     </details>
   </section>

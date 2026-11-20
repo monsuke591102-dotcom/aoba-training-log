@@ -16,9 +16,9 @@ test('盗塁成功・失敗、本盗、正しい得点、その他の走塁ア�
     .toMatchObject({ sb: 2, cs: 1, r: 2, otherOuts: 1, stealRate: 2 / 3 })
 })
 
-test('両方の盗塁結果に記録がある場合のみ成功率を算出し、未記録と実数0を区別する', () => {
-  expect(running(run(1, 'stolenBase', { to: 'second' }))).toMatchObject({ sb: 1, cs: 0, stealRate: null })
-  expect(running(run(1, 'caughtStealing'))).toMatchObject({ sb: 0, cs: 1, stealRate: null })
+test('成功または失敗の片側だけでも成功率を算出し、未記録と実数0を区別する', () => {
+  expect(running(run(1, 'stolenBase', { to: 'second' }))).toMatchObject({ sb: 1, cs: 0, stealRate: 1 })
+  expect(running(run(1, 'caughtStealing'))).toMatchObject({ sb: 0, cs: 1, stealRate: 0 })
   expect(running(run(1, 'advanced', { to: 'second' }))).toMatchObject({ sb: 0, cs: 0, stealRate: null })
   expect(running(run(1, 'stolenBase', { from: 'batter', to: 'second' }))).toMatchObject({ sb: null, cs: null, r: null })
   expect(running(run(1, 'out', { status: 'draft' }))).toMatchObject({ otherOuts: null })
@@ -29,6 +29,11 @@ test('簡易走塁を優先し、明示された0と欠落を区別する。内�
   const details: MatchDetails = { ...base, source: { ...base.source, baserunning: 'summary' },
     summary: { baserunning: { steals: 0, caughtStealing: 2, outs: 3 } }, baserunning: [run(1, 'stolenBase', { to: 'second' })] }
   expect(calculateMatchBaserunningStats({ details })).toMatchObject({ sb: 0, cs: 2, r: null, otherOuts: null, stealRate: 0 })
+  details.summary = { baserunning: { steals: 1 } }
+  const partial = calculateMatchBaserunningStats({ details })
+  expect(partial).toMatchObject({ sb: 1, cs: null, stealRate: null })
+  expect(aggregateBaserunningStats([running(run(1, 'caughtStealing')), partial]))
+    .toMatchObject({ sb: 1, cs: null, stealRate: null })
   details.summary = { baserunning: { steals: 0, caughtStealing: 0 } }
   expect(calculateMatchBaserunningStats({ details }).stealRate).toBeNull()
 })

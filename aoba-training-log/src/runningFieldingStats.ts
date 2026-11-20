@@ -4,8 +4,7 @@ import type { MatchEntry } from './model'
 type Count = number | null
 type Match = Pick<MatchEntry, 'details'>
 type RunningCounts = { sb: Count; cs: Count; r: Count; otherOuts: Count }
-type StealEvidence = { success: boolean; failure: boolean }
-export type BaserunningStats = RunningCounts & { stealRate: Count; stealEvidence: StealEvidence }
+export type BaserunningStats = RunningCounts & { stealRate: Count }
 
 type FieldingCounts = { po: Count; a: Count; e: Count }
 export type FieldingLine = FieldingCounts & { tc: Count; fpct: Count }
@@ -31,10 +30,9 @@ function sum(values: readonly Count[]): Count {
   return total
 }
 
-function runningRates(counts: RunningCounts, stealEvidence: StealEvidence): BaserunningStats {
+function runningRates(counts: RunningCounts): BaserunningStats {
   const { sb, cs } = counts
-  return { ...counts, stealEvidence, stealRate: stealEvidence.success && stealEvidence.failure &&
-    sb !== null && cs !== null && sb + cs > 0 ? sb / (sb + cs) : null }
+  return { ...counts, stealRate: sb !== null && cs !== null && sb + cs > 0 ? sb / (sb + cs) : null }
 }
 
 function recordedRun(play: BaserunningPlay) {
@@ -53,10 +51,10 @@ export function calculateMatchBaserunningStats({ details }: Match): BaserunningS
     const sb = values?.steals ?? null
     const cs = values?.caughtStealing ?? null
     // The summary model does not define whether outs includes caught stealing.
-    return runningRates({ sb, cs, r: values?.runs ?? null, otherOuts: null }, { success: sb !== null, failure: cs !== null })
+    return runningRates({ sb, cs, r: values?.runs ?? null, otherOuts: null })
   }
   const plays = details?.baserunning.filter(recordedRun) ?? []
-  if (!plays.length) return runningRates(runningUnknown, { success: false, failure: false })
+  if (!plays.length) return runningRates(runningUnknown)
   const counts = { sb: 0, cs: 0, r: 0, otherOuts: 0 }
   for (const play of plays) {
     if (play.result === 'stolenBase') counts.sb++
@@ -64,14 +62,14 @@ export function calculateMatchBaserunningStats({ details }: Match): BaserunningS
     if (play.result === 'out') counts.otherOuts++
     if (play.to === 'home' && (play.result === 'stolenBase' || play.result === 'scored')) counts.r++
   }
-  return runningRates(counts, { success: counts.sb > 0, failure: counts.cs > 0 })
+  return runningRates(counts)
 }
 
 export function aggregateBaserunningStats(matches: readonly BaserunningStats[]): BaserunningStats {
   return runningRates({
     sb: sum(matches.map(row => row.sb)), cs: sum(matches.map(row => row.cs)), r: sum(matches.map(row => row.r)),
     otherOuts: sum(matches.map(row => row.otherOuts)),
-  }, { success: matches.some(row => row.stealEvidence.success), failure: matches.some(row => row.stealEvidence.failure) })
+  })
 }
 
 function fieldingRates(counts: FieldingCounts): FieldingLine {

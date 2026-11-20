@@ -14,12 +14,13 @@ const signal = new AbortController().signal
 const flight = { id: 'fixture-flight', data: initialData(), generation: 1, revision: null }
 afterEach(() => vi.unstubAllGlobals())
 
-test.each([null, 2])('試合詳細は作成・更新のいずれも通信前に拒否する（%s）', async revision => {
+test.each(([1, 2, 3] as const).flatMap(version => [null, 2].map(revision => ({ version, revision }))))(
+  '詳細v$versionを通信前に拒否する（revision $revision）', async ({ version, revision }) => {
   const fetch = vi.fn()
   vi.stubGlobal('fetch', fetch)
   const timestamp = '2026-11-20T01:00:00.000Z'
   const data = { ...initialData(), matches: [{ id: 'match-1', date: '2026-11-20' as const,
-    good: '', improve: '', createdAt: timestamp, updatedAt: timestamp, details: emptyMatchDetails() }] }
+    good: '', improve: '', createdAt: timestamp, updatedAt: timestamp, details: { ...emptyMatchDetails(), version } }] }
   await expect(snapshotApi(session, signal).write({ ...flight, data, revision })).rejects.toThrow('端末内専用')
   expect(fetch).not.toHaveBeenCalled()
 })

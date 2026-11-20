@@ -202,6 +202,10 @@ export function restoreChange(backup: Backup, expected: TrainingData) {
     if (hasMatchDetails(current) && backup.backupVersion === backupVersion) {
       throw new BackupError('試合詳細のない旧形式で上書きできません。試合詳細を含むバックアップを選んでください。')
     }
+    const currentVersion = backupVersionFor(current)
+    if (backup.backupVersion < currentVersion) {
+      throw new BackupError('現在の試合詳細より古い形式で上書きできません。現在と同じか新しい形式のバックアップを選んでください。')
+    }
     return backup.data
   }
 }

@@ -1,11 +1,12 @@
 import migration from '../supabase/migrations/202611180001_training_log_snapshots.sql?raw'
 import writeMigration from '../supabase/migrations/202611200001_training_log_snapshot_write_v2.sql?raw'
 import rejectMatchDetailsMigration from '../supabase/migrations/202611200002_reject_local_match_details.sql?raw'
+import protectSnapshotMigration from '../supabase/migrations/202611200003_deny_local_match_details_at_storage.sql?raw'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { initialData } from './initialData'
 import { decodeBackup, encodeBackup, validateData } from './backup'
-import { emptyMatchDetails, requireCloudCompatibleMatchData } from './matchDetails'
+import { emptyMatchDetails, requireCloudCompatibleMatchData, type MatchDetails } from './matchDetails'
 
 const a = '00000000-0000-4000-8000-000000000001'
 const b = '00000000-0000-4000-8000-000000000002'
@@ -27,6 +28,8 @@ beforeAll(async () => {
     insert into auth.users values ('${a}'), ('${b}');
   `)
   await db.exec(migration)
+  // Exercise the table guard while the old RPC and first-write INSERT are still enabled.
+  await db.exec(protectSnapshotMigration)
 }, 15_000)
 
 afterAll(async () => { await db?.close() })
@@ -73,6 +76,35 @@ test('未認証、直接更新、不正なrevisionやJSONを拒否する', async
   await expect(update(0)).rejects.toMatchObject({ code: '22023' })
   await expect(update(2, '{"schemaVersion":3}')).rejects.toMatchObject({ code: '23514' })
   expect((await db.query(`select revision from ${table}`)).rows).toEqual([{ revision: 2 }])
+})
+
+test('旧RPCと旧初回INSERTは詳細v1〜v3を拒否し、保存内容とrevisionを維持する', async () => {
+  const fresh = '00000000-0000-4000-8000-000000000006'
+  await db.exec('reset role')
+  await db.query('insert into auth.users values ($1)', [fresh])
+  const day = '2026-11-20'
+  const timestamp = day + 'T12:00:00.000Z'
+  const match = { id: 'legacy-match', date: day, good: '', improve: '', createdAt: timestamp, updatedAt: timestamp }
+  const read = async () => (await db.query(`select data, revision, updated_at from ${table}`)).rows
+  for (const details of [
+    ...([1, 2, 3] as const).map(version => ({ ...emptyMatchDetails(), version })),
+    null,
+  ]) {
+    const snapshot = JSON.stringify({ ...initialData(), matches: [{ ...match, details }] })
+    await signIn(fresh)
+    await expect(db.query(`insert into ${table}(data) values ($1::jsonb)`, [snapshot]))
+      .rejects.toMatchObject({ code: '23514', constraint: 'training_log_no_local_match_details' })
+    expect(await read()).toEqual([])
+    await signIn(a)
+    const before = await read()
+    await expect(update(2, snapshot))
+      .rejects.toMatchObject({ code: '23514', constraint: 'training_log_no_local_match_details' })
+    expect(await read()).toEqual(before)
+  }
+  await signIn(fresh)
+  const legacy = JSON.stringify({ ...initialData(), matches: [match] })
+  await db.query(`insert into ${table}(data) values ($1::jsonb)`, [legacy])
+  expect((await update(1, legacy)).rows).toEqual([{ status: 'updated', revision: 2 }])
 })
 
 describe('新版RPC', () => {
@@ -164,14 +196,15 @@ describe('新版RPC', () => {
     await signIn(parityUser)
     const read = async () => (await db.query(`select data, revision, updated_at from ${table}`)).rows
     const before = await read()
-    const details = { ...emptyMatchDetails(), plateAppearances: [
+    const details: MatchDetails = { ...emptyMatchDetails(), plateAppearances: [
       { id: 'pa', order: 1, status: 'complete', result: 'double', rbi: 2 },
     ] }
     const snapshot = json({ matches: [match, { ...match, id: 'detail-match', details }] })
     const parsed = JSON.parse(snapshot)
     validateData(parsed)
     expect(() => requireCloudCompatibleMatchData(parsed)).toThrow('端末内専用')
-    for (const value of [details, null, {}, [], 0, false, '']) {
+    const versions = ([1, 2, 3] as const).map(version => ({ ...details, version }))
+    for (const value of [...versions, null, {}, [], 0, false, '']) {
       const forbidden = json({ matches: [match, { ...match, id: 'detail-match', details: value }] })
       await expect(write(2, forbidden)).rejects.toMatchObject({ code: '22023' })
       expect(await read()).toEqual(before)
@@ -181,8 +214,10 @@ describe('新版RPC', () => {
     await db.exec('reset role')
     await db.query('insert into auth.users values ($1)', [fresh])
     await signIn(fresh)
-    await expect(write(null, snapshot)).rejects.toMatchObject({ code: '22023' })
-    expect(await read()).toEqual([])
+    for (const value of versions) {
+      await expect(write(null, json({ matches: [{ ...match, details: value }] }))).rejects.toMatchObject({ code: '22023' })
+      expect(await read()).toEqual([])
+    }
     const legacy = decodeBackup(encodeBackup({ ...initialData(), matches: [match] })).data
     expect((await write(null, JSON.stringify(legacy))).rows).toEqual([{ status: 'written', revision: 1 }])
     expect((await write(1, json({ matches: [{ ...match, improve: '次回の目標' }] }))).rows)

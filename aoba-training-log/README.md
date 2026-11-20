@@ -36,6 +36,7 @@ pnpm.cmd exec vite build --mode match-test --outDir dist/match-test
 ```
 
 - 実際の配信時は、承認後に `VITE_MATCH_TEST_ORIGIN` を確定したHTTPSオリジンに置き換えます。末尾スラッシュやパスは付けません。配信するのは `dist/match-test` の中身だけです。通常のPagesビルドは従来のコマンドを使用します。
+- Codespacesを使う場合は、ポート一覧の4173の転送先URLを `VITE_MATCH_TEST_ORIGIN` に設定し、ビルドとプレビューの両方を `--mode match-test` で起動します。プレビューには `--host 0.0.0.0 --port 4173 --strictPort` を指定します。ポートは非公開のまま、CodespaceにアクセスできるGitHubアカウントの通常のブラウザーで転送先URLを開きます。過去の記録を使う場合は同じ転送先オリジンを維持します。
 - 旧ビルドが表示され続ける場合は、最新版の配信後に同じ検証オリジンの `/match-test-update.html` をSafariで開きます。更新確認後に検証画面へ戻ります。Safariのサイトデータを消去する必要はありません。
 - iPhone 8と15 Pro Maxの両方で、Safariから検証用URLを開き、画面の「試合記録の検証環境」、ビルド識別子、クラウド接続未設定の表示を確認します。ホーム画面に追加したら「AOBA LOG 検証用」を起動します。
 - 「記録 → 詳細を入力」で「試合」を選び、メニューなしで、合成した「良かったこと」「改善したいこと」を入力します。同日に2件保存し、片方だけを編集・削除して、もう片方が残ることを確認します。

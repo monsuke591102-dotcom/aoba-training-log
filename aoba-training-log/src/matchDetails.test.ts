@@ -25,7 +25,7 @@ function fixture() {
     plateAppearances: [
       { ...plate, rbi: 0, fieldPoint: { x: 0, y: 1 }, pitchCount: 0, beforeFinalPitch: { balls: 0, strikes: 0 } },
       { id: 'pa-2', order: 2, status: 'complete', result: 'strikeoutLooking', bunt: 'failed',
-        pitches: [{ id: 'pitch-1', order: 1, type: { ...initialPitchTypes[0] }, result: 'calledStrike',
+        pitches: [{ id: 'pitch-1', order: 1, type: { id: 'fastball-fast', name: 'ストレート（速）', symbol: '●' }, result: 'calledStrike',
           location: { zone: 'inside', row: 0, column: 2 } }] },
       { id: 'pa-3', order: 3, status: 'draft', rbi: 4 },
     ],
@@ -170,7 +170,7 @@ test('詳細の保存も既存の試合編集ガードに従う', () => {
 test('旧位置と旧球数を保持したまま座標形式を保存・再読込し、v3バックアップを復元できる', async () => {
   const { saved, target, details } = fixture()
   const oldPlate = details.plateAppearances[0]
-  const legacy: Pitch = { id: 'legacy-in-play', order: 1, type: { ...initialPitchTypes[1], name: '旧球種名' }, result: 'inPlay',
+  const legacy: Pitch = { id: 'legacy-in-play', order: 1, type: { id: 'fastball-slow', name: 'ストレート（遅）', symbol: '●' }, result: 'inPlay',
     location: { zone: 'outside', side: 'highLeft' } }
   const newPitch: Pitch = { id: 'new-pitch', order: 2, type: initialPitchTypes[0], result: 'hit',
     location: { zone: 'point', x: .237, y: 1 } }

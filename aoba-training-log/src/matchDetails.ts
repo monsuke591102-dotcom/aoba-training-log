@@ -1,8 +1,8 @@
 import type { TrainingData } from './model'
 
+const straightPitchType = { id: 'fastball', name: 'ストレート', symbol: '●' } as const
 export const initialPitchTypes = [
-  { id: 'fastball-fast', name: 'ストレート（速）', symbol: '●' },
-  { id: 'fastball-slow', name: 'ストレート（遅）', symbol: '●' },
+  straightPitchType,
   { id: 'curve', name: 'カーブ', symbol: '◢' },
   { id: 'slider', name: 'スライダー', symbol: '◀' },
   { id: 'splitter', name: 'スプリット', symbol: '▼' },
@@ -40,6 +40,11 @@ type Count = { balls: number; strikes: number }
 
 // Keep the label and symbol as recorded even when the selectable catalog is edited.
 export type PitchTypeSnapshot = { id: string; name: string; symbol?: string }
+// The display alias does not migrate stored pitch snapshots.
+export function displayPitchType(type: PitchTypeSnapshot): PitchTypeSnapshot {
+  return type.id === 'fastball-fast' || type.id === 'fastball-slow' ? straightPitchType : type
+}
+
 export type PitchLocation =
   | { zone: 'inside'; row: 0 | 1 | 2; column: 0 | 1 | 2 }
   | { zone: 'outside'; side: typeof outsideSides[number] }

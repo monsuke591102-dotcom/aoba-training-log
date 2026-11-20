@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, expect, test, vi } from 'vitest'
 import { BallField, normalizeFieldPoint, pitchLocationLabel, pitchPoint, StrikeZone } from './BattingDiagrams'
 import { initialData } from './initialData'
-import { emptyMatchDetails, initialPitchTypes, isMatchDetails, pitchResultError, type Pitch, type PlateAppearance } from './matchDetails'
+import { displayPitchType, emptyMatchDetails, initialPitchTypes, isMatchDetails, pitchResultError, type Pitch, type PlateAppearance } from './matchDetails'
 import { Records } from './Records'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -12,17 +12,43 @@ test('捕手視点の3×3補助線と同一点の投球番号・球種を表示�
   const legacy = { zone: 'outside', side: 'highLeft' } as const
   const html = renderToStaticMarkup(<StrikeZone location={location} onSelect={vi.fn()}
     pitches={[
-      { id: 'pitch-1', order: 1, type: initialPitchTypes[0], result: 'ball', location: legacy },
-      { id: 'pitch-2', order: 2, type: initialPitchTypes[1], result: 'calledStrike', location },
-      { id: 'pitch-3', order: 3, type: initialPitchTypes[2], result: 'foul', location: { zone: 'point', x: .21, y: .53 } },
+      { id: 'pitch-1', order: 1, type: initialPitchTypes[0], location: legacy },
+      { id: 'pitch-2', order: 2, type: initialPitchTypes[1], location },
+      { id: 'pitch-3', order: 3, type: initialPitchTypes[3], location: { zone: 'point', x: .101, y: .102 } },
     ]} />)
   expect(html).toContain('捕手視点')
   expect(html).toContain('d="M40 20v60 M60 20v60 M20 40h60 M20 60h60"')
-  expect(html.match(/class="zone-marker"/g)).toHaveLength(2)
-  expect(html).toContain('left:10%;top:10%')
-  expect(html).toContain('<span>1<span class="zone-marker-type">直</span></span><span>2<span class="zone-marker-type">直</span></span>')
-  expect(html).toContain('<span>3<span class="zone-marker-type">カー</span></span>')
+  expect(html.match(/class="zone-marker"/g)).toHaveLength(3)
+  expect(html.match(/cx="10" cy="10"/g)).toHaveLength(2)
+  expect(Number(html.match(/data-pitch-order="3" cx="([^"]+)/)?.[1])).toBeCloseTo(10.1)
+  const positions = Array.from(html.matchAll(/class="zone-marker"[^>]+style="([^"]+)"/g), match => match[1])
+  expect(new Set(positions).size).toBe(3)
+  expect(html).toContain('1<span class="zone-marker-type">●</span>')
+  expect(html).toContain('2<span class="zone-marker-type">◢</span>')
+  expect(html).toContain('3<span class="zone-marker-type">▼</span>')
   expect(legacy).toEqual({ zone: 'outside', side: 'highLeft' })
+})
+
+test('旧ストレートは原本を保ちつつ標準の球種・記号で表示する', () => {
+  expect(initialPitchTypes.filter(type => type.name.includes('ストレート'))).toEqual([
+    { id: 'fastball', name: 'ストレート', symbol: '●' },
+  ])
+  for (const [id, name] of [['fastball-fast', 'ストレート（速）'], ['fastball-slow', 'ストレート（遅）']]) {
+    const legacy = { id, name, symbol: '●' }
+    expect(displayPitchType(legacy)).toEqual(initialPitchTypes[0])
+    expect(legacy.id).toBe(id)
+    expect(legacy.name).toBe(name)
+  }
+  const custom = { id: 'custom', name: 'チェンジアップ', symbol: '◇' }
+  expect(displayPitchType(custom)).toBe(custom)
+})
+
+test('投球面は同じまま右打者と左打者を切り替えられる', () => {
+  for (const side of ['right', 'left'] as const) {
+    const html = renderToStaticMarkup(<StrikeZone batterSide={side} pitches={[]} onSelect={vi.fn()} />)
+    expect(html).toContain(`class="strike-batter" data-batter="${side}"`)
+    expect(html.match(/class="strike-grid"/g)).toHaveLength(1)
+  }
 })
 
 test('投球位置は幅が変わっても同じ相対座標になり、境界とゾーン外を保持する', () => {

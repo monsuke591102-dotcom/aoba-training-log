@@ -240,35 +240,32 @@
 .batting-diagram { margin: 0; min-width: 0; }
 .batting-diagram figcaption { margin-bottom: 6px; font-weight: 700; color: #b9dfff; }
 .strike-scene {
-  display: grid; grid-template-columns: minmax(24px, .18fr) minmax(0, 1fr);
+  display: grid; grid-template-columns: minmax(30px, .17fr) minmax(0, 1fr) minmax(30px, .17fr);
   align-items: center; background: #102d45; border-radius: 8px; max-width: 28rem;
 }
-.right-batter { width: 100%; color: #a1bdd4; }
+.strike-batter { grid-row: 1; width: 100%; color: #a1bdd4; }
+.strike-batter[data-batter="right"] { grid-column: 1; }
+.strike-batter[data-batter="left"] { grid-column: 3; transform: scaleX(-1); }
 .strike-grid {
-  position: relative; width: 100%; aspect-ratio: 1; display: block;
-  padding: 0; border: 0; border-radius: 8px; background: #12283d;
+  grid-column: 2; grid-row: 1; position: relative; width: 100%; aspect-ratio: 1; display: block;
+  padding: 0; border: 0; background: #12283d;
   overflow: hidden; cursor: crosshair; touch-action: manipulation;
 }
 .strike-guides { display: block; width: 100%; height: 100%; pointer-events: none; }
 .strike-guides rect, .strike-guides path { stroke: #a1bdd4; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .strike-guides rect { fill: #214c66; }
 .strike-guides path { fill: none; stroke-dasharray: 3 3; }
-.zone-marker, .zone-selection { position: absolute; pointer-events: none; }
-.zone-marker::before, .zone-selection {
-  width: 8px; height: 8px; border: 1px solid #102137; border-radius: 50%; background: #fff;
-  transform: translate(-50%, -50%);
+.zone-anchors { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.zone-anchors line { stroke: #a4cee7; stroke-width: 1; opacity: .7; vector-effect: non-scaling-stroke; }
+.zone-anchors circle { fill: #fff; stroke: #102137; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.zone-marker, .zone-selection { position: absolute; pointer-events: none; transform: translate(-50%, -50%); }
+.zone-selection { width: 16px; height: 16px; border: 2px solid #ffd27b; border-radius: 50%; }
+.zone-marker-badge {
+  display: inline-block; white-space: nowrap; padding: 1px 3px; border-radius: 4px;
+  background: #14263b; border: 1px solid #e6edf4; color: #f7fbff; font-size: .75rem; line-height: 1.2;
 }
-.zone-marker::before { content: ''; position: absolute; inset: 0 auto auto 0; }
-.zone-selection { width: 16px; height: 16px; border: 2px solid #ffd27b; background: transparent; }
-.zone-marker-label {
-  display: flex; flex-wrap: wrap; gap: 2px; position: absolute; top: 4px; width: max-content;
-  max-width: 6rem; color: #f7fbff; font-size: .8rem; line-height: 1.25;
-}
-.zone-marker-label[data-align="right"] { left: 4px; }
-.zone-marker-label[data-align="left"] { right: 4px; justify-content: flex-end; }
-.zone-marker-label[data-upper] { top: auto; bottom: 4px; }
-.zone-marker-label > span { padding-inline: 3px; border-radius: 4px; background: #14263b; border: 1px solid #e6edf4; }
 .zone-marker-type { margin-inline-start: 2px; }
+.zone-marker-overflow { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .batting-choices { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .batting-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .count-dot { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; border-radius: 50%; color: #102137; font-weight: 800; }

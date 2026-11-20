@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react'
 import { BallField, pitchLocationLabel, StrikeZone } from './BattingDiagrams'
-import { initialPitchTypes, pitchResultError, positions, type Pitch, type PitchLocation, type PitchTypeSnapshot, type PlateAppearance } from './matchDetails'
+import { displayPitchType, initialPitchTypes, pitchResultError, positions, type Pitch, type PitchLocation, type PitchTypeSnapshot, type PlateAppearance } from './matchDetails'
 import { updateMatchDetails, type MatchTarget } from './matches'
 import { errorMessage, type Commit } from './recordFeedback'
 import { InputError } from './training'
@@ -107,9 +107,13 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   const [pitch, setPitch] = useState<PitchDraft>({})
   const [catalog, setCatalog] = useState<PitchTypeSnapshot[]>(() => {
     const types = new Map<string, PitchTypeSnapshot>(initialPitchTypes.map(type => [type.id, type]))
-    for (const { type } of previous?.pitches ?? []) if (!types.has(type.id)) types.set(type.id, type)
+    for (const pitch of previous?.pitches ?? []) {
+      const type = displayPitchType(pitch.type)
+      if (!types.has(type.id)) types.set(type.id, type)
+    }
     return [...types.values()]
   })
+  const [batterSide, setBatterSide] = useState<'right' | 'left'>('right')
   const [extraPitch, setExtraPitch] = useState('')
   const [rbiInput, setRbiInput] = useState(plate.rbi?.toString() ?? '')
   const [balls, setBalls] = useState(plate.beforeFinalPitch?.balls.toString() ?? '')
@@ -121,7 +125,18 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   const tabId = useId()
   const pitches = [...(plate.pitches ?? [])].sort((a, b) => a.order - b.order)
   const editedPitch = pitches.find(row => row.id === pitch.id)
-  const pitchTypes = catalog.map(type => type.id === editedPitch?.type.id ? editedPitch.type : type)
+  const editedType = editedPitch && displayPitchType(editedPitch.type)
+  const pitchTypes = catalog.map(type => type.id === editedType?.id ? editedType : type)
+  const previewPitch = pitch.location && pitch.type ? {
+    id: pitch.id ?? tabId + '-pending', order: editedPitch?.order ?? nextOrder(pitches), location: pitch.location, type: pitch.type,
+  } : undefined
+  const diagramPitches = previewPitch
+    ? [...pitches.filter(row => row.id !== pitch.id), previewPitch]
+    : pitches
+
+  function selectPitchType(type: PitchTypeSnapshot) {
+    setPitch(current => ({ ...current, type: current.type && displayPitchType(current.type).id === type.id ? current.type : type }))
+  }
   const pitchPending = Boolean(pitch.id || pitch.type || pitch.location || pitch.result)
   const update = (patch: Partial<PlateAppearance>) => setPlate(current => ({ ...current, ...patch }))
 
@@ -186,19 +201,26 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
       </div>
       <div id={tabId + '-panel'} role="tabpanel" aria-labelledby={tabId + '-tab-' + tab} className="batting-panel">
         {tab === 0 ? <>
-          <StrikeZone location={pitch.location} pitches={pitches} onSelect={location => setPitch(current => ({ ...current, location }))} />
+          <div className="batting-choices" role="group" aria-label="打者の向き">
+            <button type="button" className="action" aria-pressed={batterSide === 'right'} onClick={() => setBatterSide('right')}>右打者</button>
+            <button type="button" className="action" aria-pressed={batterSide === 'left'} onClick={() => setBatterSide('left')}>左打者</button>
+          </div>
+          <StrikeZone location={pitch.location} pitches={diagramPitches} batterSide={batterSide}
+            onSelect={location => setPitch(current => ({ ...current, location }))} />
           <fieldset className="batting-choices"><legend>球種</legend>
-            {pitchTypes.map(type => <button key={type.id} type="button" className="action" aria-pressed={pitch.type?.id === type.id}
-              onClick={() => setPitch(current => ({ ...current, type }))}>{type.symbol ? type.symbol + ' ' : ''}{type.name}</button>)}
+            {pitchTypes.map(type => <button key={type.id} type="button" className="action" aria-pressed={pitch.type && displayPitchType(pitch.type).id === type.id}
+              onClick={() => selectPitchType(type)}>{type.symbol ? type.symbol + ' ' : ''}{type.name}</button>)}
           </fieldset>
           <details className="batting-extra">
             <summary>別の球種を入力</summary>
             <label>球種名<input value={extraPitch} onChange={event => setExtraPitch(event.target.value)} /></label>
             <button type="button" className="action" disabled={!extraPitch.trim()} onClick={() => {
               const name = extraPitch.trim()
-              const type = pitchTypes.find(item => item.name === name) ?? { id: crypto.randomUUID(), name }
+              const existing = pitchTypes.find(item => item.name === name)
+              const type = existing ?? (/^ストレート[（(][速遅][）)]$/.test(name)
+                ? initialPitchTypes[0] : { id: crypto.randomUUID(), name })
               if (!catalog.some(item => item.id === type.id)) setCatalog(current => [...current, type])
-              setPitch(current => ({ ...current, type }))
+              selectPitchType(type)
               setExtraPitch('')
             }}>この球種を選択</button>
           </details>
@@ -214,16 +236,19 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
           </div>
           <p className="hint" role="status">{pitch.location ? '投球位置：' + pitchLocationLabel(pitch.location) : '投球は省略できます。'}</p>
           {pitches.length > 0 && <ol className="entries" aria-label="記録した投球">
-            {pitches.map(row => <li key={row.id}>
-              <p>{row.order}球目 · {row.type.symbol} {row.type.name} · {pitchLabels[row.result]} · {pitchLocationLabel(row.location)}</p>
-              <div className="form-actions">
-                <button type="button" className="action" onClick={() => setPitch(row)}>{row.order}球目を編集</button>
-                <button type="button" className="action" onClick={() => {
-                  update({ pitches: pitches.filter(item => item.id !== row.id).map((item, index) => ({ ...item, order: index + 1 })) })
-                  if (pitch.id === row.id) setPitch({})
-                }}>{row.order}球目を削除</button>
-              </div>
-            </li>)}
+            {pitches.map(row => {
+              const type = displayPitchType(row.type)
+              return <li key={row.id}>
+                <p>{row.order}球目 · {type.symbol} {type.name} · {pitchLabels[row.result]} · {pitchLocationLabel(row.location)}</p>
+                <div className="form-actions">
+                  <button type="button" className="action" onClick={() => setPitch(row)}>{row.order}球目を編集</button>
+                  <button type="button" className="action" onClick={() => {
+                    update({ pitches: pitches.filter(item => item.id !== row.id).map((item, index) => ({ ...item, order: index + 1 })) })
+                    if (pitch.id === row.id) setPitch({})
+                  }}>{row.order}球目を削除</button>
+                </div>
+              </li>
+            })}
           </ol>}
           <p className="hint">記録投球数 {pitches.length}球（ここに登録した投球の数）</p>
           {plate.pitchCount !== undefined && <p className="hint">旧記録の手入力球数 {plate.pitchCount}球</p>}

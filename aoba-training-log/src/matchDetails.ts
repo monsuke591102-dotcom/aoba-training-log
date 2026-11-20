@@ -6,6 +6,7 @@ export const initialPitchTypes = [
   { id: 'curve', name: 'カーブ', symbol: '◢' },
   { id: 'slider', name: 'スライダー', symbol: '◀' },
   { id: 'splitter', name: 'スプリット', symbol: '▼' },
+  { id: 'shoot', name: 'シュート', symbol: '▶' },
 ] as const
 
 export const plateResults = ['single', 'double', 'triple', 'homeRun', 'groundOut', 'flyOut', 'lineOut', 'popOut',

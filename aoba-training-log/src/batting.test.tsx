@@ -67,6 +67,20 @@ test('4種類の安打を最終投球にだけ関連付け、旧打球・矛盾�
   expect(tones([{ ...pitch, result: 'inPlay' }], 'groundOut')).toEqual(['out'])
 })
 
+test('共通のシュート定義から右向き三角形を描き、その重心に投球番号を表示する', () => {
+  const shoots = initialPitchTypes.filter(type => type.name === 'シュート')
+  expect(shoots).toEqual([{ id: 'shoot', name: 'シュート', symbol: '▶' }])
+  expect(new Set(initialPitchTypes.map(type => type.id)).size).toBe(initialPitchTypes.length)
+  const html = renderToStaticMarkup(<StrikeZone onSelect={vi.fn()} pitches={[
+    { id: 'shoot-pitch', order: 12, type: shoots[0], result: 'ball', location: { zone: 'point', x: 1, y: 1 } },
+  ]} />)
+  expect(html).toContain('data-symbol="▶" data-tone="ball"')
+  expect(html).toContain('aria-label="12球目 · シュート"')
+  expect(html).toContain('<polygon class="zone-marker-symbol" points="0,0 100,50 0,100"')
+  expect(html).toMatch(/<text class="zone-marker-number" x="33" y="50"[^>]*text-anchor="middle"[^>]*>12<\/text>/)
+  expect(html).toContain('cx="100" cy="100"')
+})
+
 test('旧ストレートは原本を保ちつつ標準の球種・記号で表示する', () => {
   expect(initialPitchTypes.filter(type => type.name.includes('ストレート'))).toEqual([
     { id: 'fastball', name: 'ストレート', symbol: '●' },

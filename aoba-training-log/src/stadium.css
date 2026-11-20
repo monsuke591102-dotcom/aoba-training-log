@@ -254,8 +254,8 @@
 .zone-anchors circle { fill: #fff; stroke: #102137; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .zone-marker, .zone-selection { position: absolute; pointer-events: none; transform: translate(-50%, -50%); }
 .zone-selection { width: 16px; height: 16px; border: 2px solid #ffd27b; border-radius: 50%; }
-/* The zone spans 60% of the diagram: 7.5% is 37.5% of one guide cell. */
-.zone-marker { width: 7.5%; aspect-ratio: 1; }
+/* The zone spans 60% of the diagram: 8% is 40% of one guide cell. */
+.zone-marker { width: 8%; aspect-ratio: 1; }
 .zone-marker-badge { display: block; width: 100%; height: 100%; color: #a9b9c9; }
 .zone-marker-badge[data-tone="strike"] { color: #ffda59; }
 .zone-marker-badge[data-tone="ball"] { color: #65de91; }

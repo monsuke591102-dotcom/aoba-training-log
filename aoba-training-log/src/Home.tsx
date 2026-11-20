@@ -6,6 +6,8 @@ import { ActivityIcon } from './Calendar'
 import { fromLocalDate, localDate, recentDays } from './dates'
 import { PlanDialog } from './PlanDialog'
 import { QuickRecords } from './QuickRecords'
+import { HomeBattingSummary } from './BattingStatsView'
+import type { BattingGame } from './recordHistory'
 import { plannedMenuIds } from './routines'
 import type { Commit } from './recordFeedback'
 import type { Category, DayKind, LocalDate, TrainingData, Unit } from './model'
@@ -103,8 +105,9 @@ function Status({ progress }: { progress: Progress }) {
 
 type MenuRow = { name: string; unit: Unit; category: Category; target?: number; amount?: number; skipped?: boolean }
 
-export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge }: {
+export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge, batting }: {
   data: TrainingData; commit: Commit; onPlan: () => void; onReflection: () => void; onBadge: (id: Badge['id']) => void; pendingGauge: RefObject<boolean>
+  batting?: { games: readonly BattingGame[]; onOpen: () => void }
 }) {
   const [planDate, setPlanDate] = useState<LocalDate>()
   const { date, changed } = useLocalDay()
@@ -223,6 +226,7 @@ export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge
       </ul>
     </section>
 
+    {batting && <HomeBattingSummary games={batting.games} onOpen={batting.onOpen} />}
     <Badges badges={progress.badges} open={onBadge} />
 
     <section className="club-panel section-toolbar">

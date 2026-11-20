@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { CalendarDays, ChartNoAxesColumnIncreasing, ClipboardList, House, Settings2, Trophy, X } from 'lucide-react'
 import { BadgeDetail, type Badge } from './Badges'
 import { Baseball } from './BaseballArt'
+import { BattingStatsView } from './BattingStatsView'
 import { BackupError } from './backup'
 import { dailyStats, managementProgress } from './progress'
 import { CloudAccount } from './CloudAccount'
@@ -10,8 +11,10 @@ import { Calendar } from './Calendar'
 import { localDate } from './dates'
 import { Home } from './Home'
 import { canDeleteMenusLocally } from './menuDeletionAccess'
+import { canEditMatches } from './matches'
 import type { LocalDate, TrainingData, TrainingKind } from './model'
 import { Records, type Commit } from './Records'
+import { battingGames, recordHistory } from './recordHistory'
 import { Reflections } from './Reflections'
 import { Settings } from './Settings'
 import type { Session } from '@supabase/supabase-js'
@@ -31,7 +34,7 @@ const navigation = [
 ] as const
 
 type Tab = typeof navigation[number]['label']
-type Page = Tab | '振り返り' | 'バッジ' | 'データ管理' | 'クラウド' | '練習計画'
+type Page = Tab | '振り返り' | 'バッジ' | 'データ管理' | 'クラウド' | '練習計画' | 'ホーム打撃成績'
 
 interface Milestone { level?: number; badges: string[]; id: number }
 
@@ -132,6 +135,8 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
   }
 
   const badge = data && page === 'バッジ' ? managementProgress(data, new Date()).badges.find(item => item.id === badgeId) : undefined
+  const homeBatting = data && (page === 'ホーム' || page === 'ホーム打撃成績') && canEditMatches()
+    ? battingGames(recordHistory(data)) : undefined
 
   return <>
     <header className="masthead"><div className="shell"><span className="brand-mark"><Baseball size={27} /></span>AOBA TRAINING LOG</div></header>
@@ -147,7 +152,17 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
           onPlan={() => { setCalendarDate(localDate(new Date())); navigate('カレンダー') }}
           onReflection={() => reflect(localDate(new Date()), 'ホーム')}
           pendingGauge={pendingGauge}
+          batting={homeBatting && { games: homeBatting, onOpen: () => navigate('ホーム打撃成績') }}
           onBadge={id => { setBadgeId(id); navigate('バッジ') }} />}
+        {page === 'ホーム打撃成績' && homeBatting && <BattingStatsView games={homeBatting} backLabel="ホームへ戻る"
+          onClose={() => {
+            navigate('ホーム')
+            requestAnimationFrame(() => {
+              const trigger = document.getElementById('home-batting-open')
+              trigger?.scrollIntoView({ block: 'center' })
+              trigger?.focus({ preventScroll: true })
+            })
+          }} />}
         {badge && <BadgeDetail badge={badge} back={() => {
           navigate('ホーム')
           requestAnimationFrame(() => {
@@ -188,7 +203,7 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
       <div className="shell grid grid-cols-5">
         {navigation.map(({ label, icon: Icon }) => (
           <button key={label} type="button" disabled={!data}
-            aria-current={label === (page === '振り返り' ? previous : page === 'バッジ' ? 'ホーム' : (page === 'データ管理' || page === 'クラウド' || page === '練習計画') ? '設定' : page) ? 'page' : undefined}
+            aria-current={label === (page === '振り返り' ? previous : (page === 'バッジ' || page === 'ホーム打撃成績') ? 'ホーム' : (page === 'データ管理' || page === 'クラウド' || page === '練習計画') ? '設定' : page) ? 'page' : undefined}
             onClick={() => { setRecordStart(undefined); navigate(label) }}>
             <Icon size={22} aria-hidden="true" /><span>{label}</span>
           </button>

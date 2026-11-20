@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
-import { BattingStatsView, type BattingGame } from './BattingStatsView'
+import { BattingStatsView, HomeBattingSummary } from './BattingStatsView'
+import { battingGames, recordHistory, type BattingGame } from './recordHistory'
 import { emptyMatchDetails } from './matchDetails'
+import { initialData } from './initialData'
+import type { TrainingRecord } from './model'
 
 const point = { x: .3, y: .45 }
 const game: BattingGame = {
@@ -65,4 +68,48 @@ test('簡易集計を尊重し、不足値のある試合を含む通算を確�
   expect(render([game, missing])).toContain('対象 2試合 · 打席数または安打数の記録あり 1試合')
   expect(render([game, missing])).toContain('安打</dt><dd>—')
   expect(render([missing], missing)).toContain('集計できる打撃記録がありません。')
+})
+
+const renderHome = (games: BattingGame[]) =>
+  renderToStaticMarkup(<HomeBattingSummary games={games} onOpen={vi.fn()} />)
+
+test('ホームに通算4項目と詳細ボタンを表示し、詳細画面と同じ率・実数を示す', () => {
+  const html = renderHome([game])
+  expect(html).toContain('通算 · 1試合')
+  expect(html).toContain('打率 AVG</dt><dd>.500')
+  expect(html).toContain('出塁率 OBP</dt><dd>.667')
+  expect(html).toContain('安打 H</dt><dd>1')
+  expect(html).toContain('打席 PA</dt><dd>3')
+  expect(html).toContain('詳細を見る')
+  expect(html).not.toContain('長打率')
+  expect(render([game])).toContain('AVG</small></dt><dd>.500')
+})
+
+test('ホームは試合なし、算出可能なゼロ、簡易集計の未算出を区別する', () => {
+  expect(renderHome([])).toContain('試合の記録はまだありません。')
+  const details = { ...emptyMatchDetails(), plateAppearances: [
+    { id: 'out', status: 'complete', result: 'groundOut', order: 1 } as const,
+  ] }
+  expect(renderHome([{ ...game, details }])).toContain('打率 AVG</dt><dd>.000')
+  const simple = { ...game, details: { ...details, source: { ...details.source, batting: 'summary' as const },
+    summary: { batting: { appearances: 2, hits: 0 } } } }
+  expect(renderHome([simple])).toContain('打率 AVG</dt><dd>—')
+  expect(renderHome([simple])).toContain('安打 H</dt><dd>0')
+  const missing: BattingGame = { id: 'missing', date: '2026-11-20' }
+  expect(renderHome([simple, missing])).toContain('安打 H</dt><dd>—')
+  expect(renderHome([simple, missing])).toContain('記録が揃わない項目')
+})
+
+test('ホームと履歴の対象は共通で、紐づく試合を重複させず従来の試合も含む', () => {
+  const timestamp = '2026-11-18T00:00:00.000Z'
+  const record: TrainingRecord = { id: 'linked', date: game.date, kind: '試合', menuId: 'swing', menuName: '素振り',
+    amount: 1, unit: '回', category: '打撃', note: '', createdAt: timestamp, updatedAt: timestamp }
+  const games = battingGames(recordHistory({ ...initialData(),
+    records: [record, { ...record, id: 'legacy' }, { ...record, id: 'practice', kind: '自主練' }],
+    matches: [{ ...game, recordId: record.id, good: '', improve: '', createdAt: timestamp, updatedAt: timestamp }],
+  }))
+  expect(games).toHaveLength(2)
+  expect(games.find(row => row.id === 'record:linked')?.details).toEqual(game.details)
+  expect(games.find(row => row.id === 'record:legacy')?.details).toBeUndefined()
+  expect(renderHome(games)).toContain('安打 H</dt><dd>—')
 })

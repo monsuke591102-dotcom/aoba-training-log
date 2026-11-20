@@ -10,6 +10,7 @@ import { deleteRecord, InputError, saveRecord, trainingKinds } from './training'
 import { canEditMatches, deleteMatch, saveMatch, type MatchDraft } from './matches'
 import { BattingEditor } from './BattingEditor'
 import { BattingStatsView } from './BattingStatsView'
+import { battingGames, isMatchHistoryEntry, recordHistory } from './recordHistory'
 
 export function rejectInvalidNumber(form: HTMLFormElement) {
   if (Array.from(form.querySelectorAll<HTMLInputElement>('input[type="number"]')).some(input => input.validity.badInput)) {
@@ -102,13 +103,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const editMatches = canEditMatches()
-  const links = new Map(data.matches?.filter(match => match.recordId).map(match => [match.recordId, match]))
-  const linkedIds = new Set(data.records.filter(record => record.kind === '試合').map(record => record.id))
-  const history = [
-    ...data.records.map(record => ({ id: 'record:' + record.id, record, match: record.kind === '試合' ? links.get(record.id) : undefined, date: record.date, createdAt: record.createdAt })),
-    ...(data.matches ?? []).filter(match => !linkedIds.has(match.recordId ?? '')).map(match =>
-      ({ id: 'match:' + match.id, record: undefined, match, date: match.date, createdAt: match.createdAt })),
-  ].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
+  const history = recordHistory(data)
   const selection = history.find(item => item.id === editing)
   const battingEntry = editMatches ? history.find(item => item.id === batting) : undefined
 
@@ -137,9 +132,8 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       target={battingEntry.record ? { recordId: battingEntry.record.id } : { matchId: battingEntry.match!.id }}
       appearances={battingEntry.match?.details?.plateAppearances ?? []} />
   }
-  const isMatch = (entry: typeof history[number]) => entry.record ? entry.record.kind === '試合' : Boolean(entry.match)
   if (editMatches && battingStats) {
-    const games = history.filter(isMatch).map(({ id, date, match }) => ({ id, date, details: match?.details }))
+    const games = battingGames(history)
     const game = games.find(row => row.id === battingStats)
     if (battingStats === 'total' || game) return <BattingStatsView games={games} game={game}
       onClose={() => setBattingStats(undefined)} />
@@ -160,7 +154,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       </section>
       <section className="card">
         <h2>練習履歴</h2>
-        {editMatches && editing === null && history.some(isMatch) &&
+        {editMatches && editing === null && history.some(isMatchHistoryEntry) &&
           <button type="button" className="action" onClick={() => openBattingStats('total')}>通算打撃成績</button>}
         {history.length === 0 && <p className="hint">まだ記録がありません。</p>}
         <ul className="entries">

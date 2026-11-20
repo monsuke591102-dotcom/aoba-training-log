@@ -1,10 +1,9 @@
 import { useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { BallFieldDrawing } from './BattingDiagrams'
 import { resultLabels } from './BattingEditor'
 import { aggregateBattingStats, calculateMatchBattingStats, type BattingStats } from './battingStats'
-import type { MatchEntry } from './model'
-
-export type BattingGame = Pick<MatchEntry, 'id' | 'date' | 'details'>
+import type { BattingGame } from './recordHistory'
 
 const rates = [['avg', '打率', 'AVG'], ['obp', '出塁率', 'OBP'], ['slg', '長打率', 'SLG'], ['ops', 'OPS', '']] as const
 const counts = [
@@ -17,6 +16,25 @@ const counts = [
 
 function formatRate(value: number | null) {
   return value === null ? '—' : value.toFixed(3).replace(/^0\./, '.')
+}
+
+export function HomeBattingSummary({ games, onOpen }: { games: readonly BattingGame[]; onOpen: () => void }) {
+  const stats = aggregateBattingStats(games.map(calculateMatchBattingStats))
+  const values = [formatRate(stats.avg), formatRate(stats.obp), stats.h ?? '—', stats.pa ?? '—']
+  return <section className="club-panel home-batting-summary" aria-labelledby="home-batting-title">
+    <header>
+      <div><h2 id="home-batting-title">打撃成績</h2><p className="hint">通算 · {games.length}試合</p></div>
+      <button type="button" id="home-batting-open" className="action" onClick={onOpen}>
+        詳細を見る<ChevronRight size={16} aria-hidden="true" />
+      </button>
+    </header>
+    <dl>
+      {['打率 AVG', '出塁率 OBP', '安打 H', '打席 PA'].map((label, index) =>
+        <div key={label}><dt>{label}</dt><dd>{values[index]}</dd></div>)}
+    </dl>
+    {games.length === 0 ? <p className="hint">試合の記録はまだありません。</p>
+      : values.includes('—') && <p className="hint">記録が揃わない項目は「—」です。</p>}
+  </section>
 }
 
 function StatsCard({ stats }: { stats: BattingStats }) {
@@ -85,8 +103,8 @@ function HitLocations({ game }: { game: BattingGame }) {
   </section>
 }
 
-export function BattingStatsView({ games, game, onClose }: {
-  games: readonly BattingGame[]; game?: BattingGame; onClose: () => void
+export function BattingStatsView({ games, game, onClose, backLabel = '練習履歴へ戻る' }: {
+  games: readonly BattingGame[]; game?: BattingGame; onClose: () => void; backLabel?: string
 }) {
   const rows = game ? [game] : games
   const summaries = rows.map(calculateMatchBattingStats)
@@ -94,7 +112,7 @@ export function BattingStatsView({ games, game, onClose }: {
   const dates = rows.map(row => row.date).sort()
   const recorded = summaries.filter(summary => summary.pa !== null || summary.h !== null).length
   return <section className="card batting-stats">
-    <button type="button" className="action" onClick={onClose}>練習履歴へ戻る</button>
+    <button type="button" className="action" onClick={onClose}>{backLabel}</button>
     <h2>{game ? '試合の打撃成績' : '通算打撃成績'}</h2>
     {game ? <p className="hint">{game.date}{game.details?.opponent && ' · ' + game.details.opponent}
       {game.details && (game.details.source.batting === 'summary' ? ' · 簡易集計' : ' · 詳細記録')}</p>

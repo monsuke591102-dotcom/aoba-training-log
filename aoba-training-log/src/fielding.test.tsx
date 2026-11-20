@@ -131,3 +131,34 @@ test('新旧守備の混在、再読込、バックアップ復元と編集・�
   await restored.update(restoreChange(backup, initialData()))
   expect(await restored.read()).toEqual(reopened)
 })
+
+test('送球エラーを単独・アウト併記で保存でき、編集と削除で公式の失策を自動加算しない', async () => {
+  vi.stubGlobal('__MATCH_TEST_BUILD__', { origin: 'https://match.invalid' })
+  vi.stubGlobal('window', { isSecureContext: true, location: { origin: 'https://match.invalid' } })
+  const db = 'throwing-error-' + crypto.randomUUID()
+  const store = createStorage(db)
+  const prior: FieldingPlay = { ...play, opportunity: { inning: 2, throwResult: 'success', outcome: 'safe' } }
+  const current: FieldingPlay = { id: 'throwing-error', order: 2, status: 'complete', position: 'SS', playType: 'grounder',
+    opportunity: { inning: 2, throwResult: 'error', outcome: 'notApplicable' }, credits: ['assist'] }
+  const details: MatchDetails = { ...emptyMatchDetails(), version: 3, fielding: [prior] }
+  await store.update(data => ({ ...data, matches: [{ ...match, details }] }))
+  await store.update(data => saveMatchDetailRow(data, target, 'fielding', current))
+  const saved = (await createStorage(db).read()).matches![0]
+  expect(saved.details!.fielding).toEqual([prior, current])
+  expect(calculateMatchFieldingStats(saved)).toMatchObject({ po: 0, a: 1, e: 0, fpct: 1 })
+  const html = renderToStaticMarkup(<FieldingEditor details={saved.details} target={target} commit={vi.fn()} onClose={vi.fn()} />)
+  expect(html).toContain('旧記録：送球成功')
+  expect(html).toContain('送球エラー')
+  expect(decodeBackup(encodeBackup({ ...initialData(), matches: [saved] })).data.matches).toEqual([saved])
+
+  const edited = await store.update(data => saveMatchDetailRow(data, target, 'fielding', {
+    ...current, opportunity: { ...current.opportunity, outcome: 'out' }, credits: ['error'],
+  }))
+  expect(calculateMatchFieldingStats(edited.matches![0])).toMatchObject({ po: 0, e: 1, fpct: 0 })
+  expect(edited.matches![0].details!.fielding[0]).toEqual(prior)
+  const deleted = await store.update(data => updateMatchDetails(data, target, details => ({
+    ...details, fielding: details.fielding.filter(row => row.id !== current.id),
+  })))
+  expect(deleted.matches![0].details!.fielding).toEqual([prior])
+  expect(calculateMatchFieldingStats(deleted.matches![0])).toMatchObject({ po: 0, a: 0, e: 0, fpct: null })
+})

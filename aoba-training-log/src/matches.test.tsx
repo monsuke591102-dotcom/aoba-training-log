@@ -5,7 +5,7 @@ import { createAccountStorage } from './accountStorage'
 import { compareBackupCounts, decodeBackup, encodeBackup, replacesMatches, validateData } from './backup'
 import { emptyMatchDetails } from './matchDetails'
 import { initialData } from './initialData'
-import { canEditMatches, deleteMatch, saveMatch, type MatchDraft } from './matches'
+import { canEditMatches, deleteMatch, saveMatch, updateMatchDetails, type MatchDraft } from './matches'
 import { Records } from './Records'
 import { createStorage } from './storage'
 import { hasLocalData, syncOnce, type RemoteSnapshot, type SnapshotApi } from './sync'
@@ -186,4 +186,41 @@ test('履歴は確定イベント、下書き、未記録と簡易集計を区�
   expect(withOpponent).toContain('match-whole-actions')
   expect(withOpponent).toContain('>試合を編集</button>')
   expect(withOpponent).toContain('>試合を削除</button>')
+})
+
+test('対戦相手を新規・編集で保存し、同日試合と既存の詳細を保持する', async () => {
+  const db = 'opponent-' + crypto.randomUUID()
+  const store = createStorage(db)
+  const withoutReflection = { ...draft, good: '', improve: '' }
+  await store.update(data => saveMatch(data, { ...withoutReflection, opponent: ' 青葉クラブ ' }, undefined, now))
+  await store.update(data => saveMatch(data, {
+    ...withoutReflection, menuId: 'swing', amount: '3', opponent: 'みどりクラブ',
+  }, undefined, now))
+  const start = await createStorage(db).read()
+  const [first, second] = start.matches!
+  expect(first.details?.opponent).toBe('青葉クラブ')
+  expect(second.details?.opponent).toBe('みどりクラブ')
+  expect(second.recordId).toBe(start.records[0].id)
+  const target = { matchId: first.id }
+  const recorded = await store.update(data => updateMatchDetails(data, target, details => ({
+    ...details, plateAppearances: [{ id: 'pa', order: 1, status: 'complete', result: 'single' }],
+    baserunning: [{ id: 'run', order: 1, status: 'draft', plateAppearanceId: 'pa' }],
+    fielding: [{ id: 'field', order: 1, status: 'draft', plateAppearanceId: 'pa', opportunity: {} }],
+  }), now))
+  const original = recorded.matches!.find(row => row.id === first.id)!
+  await store.update(data => saveMatch(data, { ...withoutReflection, opponent: ' 新しい対戦相手 ' }, target, now))
+  const edited = await createStorage(db).read()
+  expect(edited.matches!.find(row => row.id === first.id)?.details).toEqual({ ...original.details, opponent: '新しい対戦相手' })
+  expect(edited.matches!.find(row => row.id === second.id)).toEqual(second)
+  const html = renderToStaticMarkup(<Records data={edited} commit={vi.fn()} />)
+  expect(html).toContain('対 新しい対戦相手')
+  expect(html).toContain('対 みどりクラブ')
+  expect(html).toContain('同日第1試合')
+  expect(html).toContain('同日第2試合')
+  const unchanged = saveMatch(edited, withoutReflection, target, now)
+  expect(unchanged.matches!.find(row => row.id === first.id)?.details?.opponent).toBe('新しい対戦相手')
+  const cleared = saveMatch(unchanged, { ...withoutReflection, opponent: '   ' }, target, now)
+  expect(cleared.matches!.find(row => row.id === first.id)?.details).toEqual({ ...original.details, opponent: undefined })
+  const unnamed = saveMatch(initialData(), { ...withoutReflection, menuId: 'swing', amount: '3', opponent: ' ' }, undefined, now)
+  expect(unnamed.matches).toBeUndefined()
 })

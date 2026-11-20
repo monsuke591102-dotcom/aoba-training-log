@@ -15,7 +15,7 @@ const plays: Record<NonNullable<FieldingPlay['playType']>, string> = {
 const credits = [['putout', 'PO（刺殺）'], ['assist', 'A（補殺）'], ['error', 'E（失策）']] as const
 const noBallKinds = { pickoff: '牽制', caughtStealing: '盗塁阻止', other: 'その他' }
 const catchResults = { success: '捕球成功', failure: '捕球失敗', notApplicable: '捕球なし・対象外' }
-const throwResults = { success: '送球成功', error: '送球エラー', notApplicable: '送球なし・対象外' }
+const throwResults = { success: '旧記録：送球成功', error: '送球エラー', notApplicable: '旧記録：送球なし・対象外' }
 const outcomes = { out: 'アウト', safe: 'セーフ', notApplicable: '結果対象外' }
 export const fieldingSkills = [['catching', '捕球'], ['throwing', '送球'], ['judgment', '判断'], ['baseCover', 'ベースカバー'], ['other', 'その他']] as const
 const reflections = [['feel', '良かったこと'], ['reflection', '反省点'], ['improvement', '次に意識すること']] as const
@@ -92,6 +92,9 @@ export function FieldingEditor({ target, details, commit, onClose }: {
       const input = inning.trim()
       const inningValue = input === '' ? undefined : /^\d+$/.test(input) ? Number(input) : Number.NaN
       const opportunity = { ...draft.opportunity, inning: inningValue }
+      if (status === 'complete' && opportunity.throwResult === 'error' && opportunity.outcome === undefined) {
+        opportunity.outcome = 'notApplicable'
+      }
       const hasDetails = !original || original.opportunity !== undefined || draft.playType === 'noBall' ||
         Object.values(opportunity).some(value => value !== undefined)
       const row = { ...draft, status, opportunity: hasDetails ? opportunity : undefined }
@@ -117,8 +120,8 @@ export function FieldingEditor({ target, details, commit, onClose }: {
       </p>
       {row.opportunity && <p className="hint">
         {row.opportunity.catchResult ? catchResults[row.opportunity.catchResult] : '捕球結果未記録'} ·{' '}
-        {row.opportunity.throwResult ? throwResults[row.opportunity.throwResult] : '送球結果未記録'} ·{' '}
-        {row.opportunity.outcome ? outcomes[row.opportunity.outcome] : 'プレー結果未記録'}
+        {row.opportunity.throwResult && throwResults[row.opportunity.throwResult] + ' · '}
+        {row.opportunity.outcome ? outcomes[row.opportunity.outcome] : 'アウト・セーフ未記録'}
       </p>}
       <p className="hint">{row.credits === undefined ? '公式記録未入力' : row.credits.length
         ? credits.filter(([key]) => row.credits?.includes(key)).map(([, label]) => label).join('・') : '公式記録なし'}</p>
@@ -146,6 +149,8 @@ export function FieldingEditor({ target, details, commit, onClose }: {
   }
   const updateOpportunity = (patch: Partial<FieldingOpportunity>) => update({ opportunity: { ...draft.opportunity, ...patch } })
   const oldPlayType = original?.playType
+  const throwingError = draft.opportunity?.throwResult === 'error'
+  const oldThrowResult = original?.opportunity?.throwResult
   return <section ref={editor} className="card batting-editor fielding-editor batting-editor-with-save">
     <h2>第{draft.order}守備プレー</h2>
     <fieldset className="batting-form" disabled={busy}>
@@ -171,10 +176,16 @@ export function FieldingEditor({ target, details, commit, onClose }: {
       <fieldset className="batting-result-fields"><legend>結果</legend>
         <ResultSelect label="捕球結果" choices={catchResults} value={draft.opportunity?.catchResult}
           onChange={catchResult => updateOpportunity({ catchResult })} />
-        <ResultSelect label="送球結果" choices={throwResults} value={draft.opportunity?.throwResult}
-          onChange={throwResult => updateOpportunity({ throwResult })} />
-        <ResultSelect label={draft.playType === 'noBall' ? 'プレー結果（任意）' : 'プレー結果'}
-          choices={outcomes} value={draft.opportunity?.outcome} onChange={outcome => updateOpportunity({ outcome })} />
+        <fieldset className="batting-result-fields"><legend>プレー結果</legend>
+          <ResultSelect label={draft.playType === 'noBall' || throwingError ? 'アウト・セーフ（任意）' : 'アウト・セーフ'}
+            choices={outcomes} value={draft.opportunity?.outcome} onChange={outcome => updateOpportunity({ outcome })} />
+          <div className="form-actions">
+            <button type="button" className="action" aria-pressed={throwingError} onClick={() => updateOpportunity({
+              throwResult: throwingError ? (oldThrowResult === 'error' ? undefined : oldThrowResult) : 'error',
+            })}>送球エラー</button>
+          </div>
+          <p className="hint">送球エラーはアウト・セーフと併記できます。省略時は「結果対象外」で保存します。公式記録のEは下の欄で指定します。</p>
+        </fieldset>
       </fieldset>
       <fieldset className="batting-choices"><legend>公式記録</legend>
         <button type="button" className="action" aria-pressed={draft.credits === undefined}

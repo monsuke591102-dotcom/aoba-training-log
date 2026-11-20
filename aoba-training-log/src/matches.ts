@@ -10,7 +10,7 @@ export function canEditMatches() {
       ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
 }
 
-export type MatchDraft = RecordDraft & { good: string; improve: string }
+export type MatchDraft = RecordDraft & { good: string; improve: string; opponent?: string }
 export type MatchTarget = { recordId: string } | { matchId: string }
 
 function withMatches(data: TrainingData, matches: MatchEntry[]): TrainingData {
@@ -47,11 +47,17 @@ export function saveMatch(data: TrainingData, draft: MatchDraft, target?: MatchT
     next = saveRecord(data, draft, record?.id, now)
     recordId = next.records.at(-1)!.id
   }
+  const opponent = draft.opponent?.trim()
+  let details = previous?.details
+  if (draft.opponent !== undefined && (opponent || details?.opponent !== undefined)) {
+    details = { ...(details ?? emptyMatchDetails()), opponent: opponent || undefined }
+  }
   const remaining = matches.filter(row => row !== previous)
-  if (recordId && !good && !improve && !previous?.details) return previous ? withMatches(next, remaining) : next
+  if (recordId && !good && !improve && !details) return previous ? withMatches(next, remaining) : next
   const entry: MatchEntry = {
     ...previous, id: previous?.id ?? crypto.randomUUID(), recordId, date: draft.date, good, improve,
     createdAt: previous?.createdAt ?? timestamp, updatedAt: timestamp,
+    ...(details && { details }),
   }
   return { ...next, matches: [...remaining, entry] }
 }

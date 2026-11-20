@@ -35,7 +35,7 @@ function RecordForm({ data, record, match, date, kind, commit, onClose }: {
     date: record?.date ?? match?.date ?? date ?? today, menuId: record?.menuId ?? '', kind: record?.kind ?? (match ? '試合' : kind ?? '自主練'),
     amount: String(record?.amount ?? ''), duration: String(record?.durationMinutes ?? ''),
     note: record?.note ?? '', rating: String(record?.rating ?? ''),
-    good: match?.good ?? '', improve: match?.improve ?? '',
+    good: match?.good ?? '', improve: match?.improve ?? '', opponent: match?.details?.opponent ?? '',
   })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -88,6 +88,7 @@ function RecordForm({ data, record, match, date, kind, commit, onClose }: {
         </select></label>
         </>}
         {matchEnabled && <>
+          <label>対戦相手（任意）<input value={draft.opponent ?? ''} onChange={event => update('opponent', event.target.value)} /></label>
           <label>良かったこと（任意）<textarea rows={2} value={draft.good} onChange={event => update('good', event.target.value)} /></label>
           <label>改善したいこと（任意）<textarea rows={2} value={draft.improve} onChange={event => update('improve', event.target.value)} /></label>
         </>}

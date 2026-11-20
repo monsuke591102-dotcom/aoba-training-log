@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { ChevronLeft, Cloud } from 'lucide-react'
 import { supabase } from './cloud'
-import { compareBackupCounts, encodeBackup } from './backup'
+import { compareBackupCounts, encodeBackup, replacesMatches } from './backup'
 import { downloadBackup } from './DataManagement'
 import { localDate } from './dates'
 import type { TrainingData } from './model'
@@ -113,6 +113,10 @@ export function CloudAccount({ back, session, sync }: { back: () => void; sessio
 function SyncPanel({ sync }: { sync: SyncView }) {
   const { decision } = sync
   const counts = decision && compareBackupCounts(decision.local, decision.remote?.data ?? decision.local)
+  const localRisk = decision?.remote ? replacesMatches(decision.remote.data, decision.local) : false
+  const remoteRisk = decision ? replacesMatches(decision.local, decision.remote?.data) : false
+  const [protectedDecision, setProtectedDecision] = useState<typeof decision>()
+  const backupConfirmed = protectedDecision === decision
   const [downloadError, setDownloadError] = useState(false)
   const blocked = sync.choosing || sync.status === '同期中' || sync.status === 'オフライン'
 
@@ -144,9 +148,14 @@ function SyncPanel({ sync }: { sync: SyncView }) {
         <button className="action" onClick={() => exportCopy(decision.local, 'device')}>端末の候補を保存</button>
         {decision.remote && <button className="action" onClick={() => exportCopy(decision.remote!.data, 'cloud')}>クラウドの候補を保存</button>}
       </div>
+      {(localRisk || remoteRisk) && <div className="fields">
+        <p className="restore-warning">候補によっては試合記録や振り返りの一部が置き換わります。選択前に、表示されている候補をJSONで保存してください。</p>
+        <label className="checkbox"><input type="checkbox" checked={backupConfirmed} disabled={blocked}
+          onChange={event => setProtectedDecision(event.target.checked ? decision : undefined)} />候補のバックアップファイルを保存したことを確認しました</label>
+      </div>}
       <div className="form-actions">
-        <button className="action filled" disabled={blocked} onClick={() => sync.choose('local')}>端末のデータで同期</button>
-        <button className="action" disabled={blocked} onClick={() => sync.choose('remote')}>
+        <button className="action filled" disabled={blocked || (localRisk && !backupConfirmed)} onClick={() => sync.choose('local')}>端末のデータで同期</button>
+        <button className="action" disabled={blocked || (remoteRisk && !backupConfirmed)} onClick={() => sync.choose('remote')}>
           {decision.remote ? 'クラウドのデータを使う' : 'クラウドの空の状態を使う'}
         </button>
       </div>

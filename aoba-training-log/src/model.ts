@@ -36,6 +36,17 @@ export interface TrainingRecord {
   updatedAt: Timestamp
 }
 
+export interface MatchEntry {
+  id: string
+  date: LocalDate
+  // Linked entries use the existing record ID and keep a date for recovery.
+  recordId?: string
+  good: string
+  improve: string
+  createdAt: Timestamp
+  updatedAt: Timestamp
+}
+
 export type Plan =
   | { date: LocalDate; kind: '休養日' }
   | { date: LocalDate; kind: TrainingKind; menuIds: string[] }
@@ -98,6 +109,7 @@ export interface TrainingData {
   menus: Menu[]
   deletedMenus?: DeletedMenu[]
   records: TrainingRecord[]
+  matches?: MatchEntry[]
   plans: Plan[]
   skippedMenus: SkippedMenu[]
   rests: { date: LocalDate; createdAt: Timestamp }[]

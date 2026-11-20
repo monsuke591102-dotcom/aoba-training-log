@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __TRAINING_CLOUD_CONFIG__: JSON.stringify(cloud),
       __LOCAL_MENU_DELETE__: JSON.stringify(!cloud && env.VITE_ENABLE_LOCAL_MENU_DELETE === 'true'),
+      __LOCAL_MATCH_RECORDS__: JSON.stringify(!cloud && env.VITE_ENABLE_LOCAL_MATCH_RECORDS === 'true'),
     },
   }
 })

@@ -63,6 +63,17 @@ export function validateData(data: unknown): asserts data is TrainingData {
     (row.entrySource === undefined || row.entrySource === 'quick') &&
     (row.durationMinutes === undefined || positive(row.durationMinutes)) && string(row.note) &&
     (row.rating === undefined || oneOf(row.rating, [1, 2, 3, 4, 5])) && timestamps(row), row => row.id)
+  if (data.matches !== undefined) {
+    const linked = new Set<unknown>()
+    validateRows(data.matches, '試合・試合の振り返り', row => {
+      if (!nonempty(row.id) || !date(row.date) || !string(row.good) || !string(row.improve) || !timestamps(row)) return false
+      // A linked reflection can outlive its record when an older client deletes it.
+      if (row.recordId === undefined) return true
+      if (!nonempty(row.recordId) || linked.has(row.recordId)) return false
+      linked.add(row.recordId)
+      return true
+    }, row => row.id)
+  }
   validateRows(data.plans, '練習予定', row => date(row.date) && (row.kind === '休養日' ||
     (oneOf(row.kind, trainingKinds) && Array.isArray(row.menuIds) &&
       row.menuIds.every(id => ids.has(id)) && new Set(row.menuIds).size === row.menuIds.length)), row => row.date)
@@ -144,7 +155,7 @@ export function decodeBackup(text: string): Backup {
 }
 
 const backupCountItems = [
-  ['records', '練習記録'], ['plans', '練習予定'], ['goals', '目標・変更履歴'],
+  ['records', '練習記録'], ['matches', '試合・試合の振り返り'], ['plans', '練習予定'], ['goals', '目標・変更履歴'],
   ['reflections', '振り返り'], ['skippedMenus', '見送り'], ['rests', '休養日の記録'],
   ['menus', '練習メニュー'], ['routineVersions', '曜日別計画'], ['deletedMenus', '削除済みメニュー（履歴用）'],
   ['routineAdditions', '条件付き計画の追加'], ['routineCompletions', '計画の完了チェック'],
@@ -153,7 +164,16 @@ const backupCountItems = [
 export function compareBackupCounts(current: TrainingData, backup: TrainingData) {
   return backupCountItems.map(([key, label]) => ({
     key, label, current: current[key]?.length ?? 0, restored: backup[key]?.length ?? 0,
-  })).filter(row => row.key !== 'deletedMenus' || row.current > 0 || row.restored > 0)
+  })).filter(row => (row.key !== 'deletedMenus' && row.key !== 'matches') || row.current > 0 || row.restored > 0)
+}
+
+export function replacesMatches(current: TrainingData, replacement?: TrainingData) {
+  const incoming = new Map(replacement?.matches?.map(item => [item.id, item]))
+  return current.matches?.some(item => {
+    const next = incoming.get(item.id)
+    return !next || item.recordId !== next.recordId || item.date !== next.date ||
+      item.good !== next.good || item.improve !== next.improve
+  }) ?? false
 }
 
 export function restoreChange(backup: Backup, expected: TrainingData) {

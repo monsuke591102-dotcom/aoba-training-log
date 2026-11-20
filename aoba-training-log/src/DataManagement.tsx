@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { ChevronLeft, Database } from 'lucide-react'
-import { BackupError, compareBackupCounts, decodeBackup, encodeBackup, restoreChange, type Backup } from './backup'
+import { BackupError, compareBackupCounts, decodeBackup, encodeBackup, replacesMatches, restoreChange, type Backup } from './backup'
 import { localDate } from './dates'
 import type { TrainingData } from './model'
 import { ScreenTitle } from './ScreenTitle'
@@ -32,6 +32,8 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
   const [preview, setPreview] = useState<{ backup: Backup; current: TrainingData; name: string }>()
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const [backupConfirmed, setBackupConfirmed] = useState(false)
+  const matchRisk = preview && replacesMatches(preview.current, preview.backup.data)
   const input = useRef<HTMLInputElement>(null)
   const previewHeading = useRef<HTMLHeadingElement>(null)
 
@@ -89,6 +91,7 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
     setError('')
     setStatus('')
     setPreview(undefined)
+    setBackupConfirmed(false)
     try {
       const backup = decodeBackup(await file.text())
       setPreview({ backup, name: file.name, current: await read() })
@@ -100,7 +103,7 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
   }
 
   async function confirmRestore() {
-    if (!preview) return
+    if (!preview || (matchRisk && !backupConfirmed)) return
     setBusy(true)
     setError('')
     try {
@@ -142,8 +145,13 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
         )}</tbody>
       </table>
       {error && <p className="error" role="alert">{error}</p>}
+      {matchRisk && <div className="fields">
+        <p className="restore-warning">現在の試合記録や振り返りの一部が置き換わります。復元前に「バックアップを保存」で現在のデータを保存してください。</p>
+        <label className="checkbox"><input type="checkbox" checked={backupConfirmed} disabled={busy}
+          onChange={event => setBackupConfirmed(event.target.checked)} />現在のバックアップファイルを保存したことを確認しました</label>
+      </div>}
       <div className="form-actions">
-        <button className="action danger" disabled={busy} onClick={confirmRestore}>全データを置き換えて復元</button>
+        <button className="action danger" disabled={busy || (matchRisk && !backupConfirmed)} onClick={confirmRestore}>全データを置き換えて復元</button>
         <button className="action" disabled={busy} onClick={() => {
           setPreview(undefined)
           setError('')

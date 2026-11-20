@@ -9,6 +9,7 @@ import { localDate } from './dates'
 import { deleteRecord, InputError, saveRecord, trainingKinds } from './training'
 import { canEditMatches, deleteMatch, saveMatch, type MatchDraft } from './matches'
 import { BattingEditor } from './BattingEditor'
+import { BaserunningEditor } from './BaserunningEditor'
 import { BattingStatsView } from './BattingStatsView'
 import { battingGames, isMatchHistoryEntry, recordHistory } from './recordHistory'
 
@@ -99,6 +100,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
   const [editing, setEditing] = useState<string | null>(start ? start.id ? 'record:' + start.id : '' : null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [batting, setBatting] = useState<string | null>(null)
+  const [running, setRunning] = useState<string | null>(null)
   const [battingStats, setBattingStats] = useState<string>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -106,6 +108,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
   const history = recordHistory(data)
   const selection = history.find(item => item.id === editing)
   const battingEntry = editMatches ? history.find(item => item.id === batting) : undefined
+  const runningEntry = editMatches ? history.find(item => item.id === running) : undefined
 
   async function confirmDelete() {
     const entry = history.find(item => item.id === deleting)
@@ -131,6 +134,11 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
     return <BattingEditor key={battingEntry.id} commit={commit} onClose={() => setBatting(null)}
       target={battingEntry.record ? { recordId: battingEntry.record.id } : { matchId: battingEntry.match!.id }}
       appearances={battingEntry.match?.details?.plateAppearances ?? []} />
+  }
+  if (runningEntry && (runningEntry.record?.kind === '試合' || (runningEntry.match && !runningEntry.match.recordId))) {
+    return <BaserunningEditor key={runningEntry.id} commit={commit} onClose={() => setRunning(null)}
+      target={runningEntry.record ? { recordId: runningEntry.record.id } : { matchId: runningEntry.match!.id }}
+      details={runningEntry.match?.details} />
   }
   if (editMatches && battingStats) {
     const games = battingGames(history)
@@ -183,7 +191,10 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
                     <button className="action" onClick={() => { setEditing(id); window.scrollTo(0, 0) }}>編集</button>
                     <button className="action" onClick={() => { setError(''); setDeleting(id) }}>削除</button>
                     {editMatches && editing === null && (record?.kind === '試合' || (match && !match.recordId)) &&
-                      <button className="action" onClick={() => { setBatting(id); window.scrollTo(0, 0) }}>打席を記録</button>}
+                      <>
+                        <button className="action" onClick={() => { setBatting(id); window.scrollTo(0, 0) }}>打席を記録</button>
+                        <button className="action" onClick={() => { setRunning(id); window.scrollTo(0, 0) }}>走塁を記録</button>
+                      </>}
                   </div>}
             </li>
           ))}

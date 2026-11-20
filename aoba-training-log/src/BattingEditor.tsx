@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { BallField, pitchLocationLabel, StrikeZone } from './BattingDiagrams'
 import { initialPitchTypes, positions, type Pitch, type PitchLocation, type PitchTypeSnapshot, type PlateAppearance } from './matchDetails'
 import { updateMatchDetails, type MatchTarget } from './matches'
 import { errorMessage, type Commit } from './recordFeedback'
 import { InputError } from './training'
+import { useMatchSaveBar } from './useMatchSaveBar'
 
 export const resultLabels: Record<NonNullable<PlateAppearance['result']>, string> = {
   single: '単打', double: '二塁打', triple: '三塁打', homeRun: '本塁打',
@@ -116,47 +117,11 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
-  const editor = useRef<HTMLElement>(null)
-  const saveBar = useRef<HTMLDivElement>(null)
+  const { editor, saveBar } = useMatchSaveBar()
   const tabId = useId()
   const pitches = [...(plate.pitches ?? [])].sort((a, b) => a.order - b.order)
   const pitchPending = Boolean(pitch.id || pitch.type || pitch.location || pitch.result)
   const update = (patch: Partial<PlateAppearance>) => setPlate(current => ({ ...current, ...patch }))
-
-  useEffect(() => {
-    const section = editor.current
-    const bar = saveBar.current
-    if (!section || !bar) return
-    const viewport = window.visualViewport
-    let fullHeight = viewport?.height ?? window.innerHeight
-    const measure = () => {
-      const height = Math.ceil(bar.getBoundingClientRect().height)
-      if (height) section.style.setProperty('--batting-save-height', height + 'px')
-    }
-    const updateKeyboard = () => {
-      const focused = document.activeElement
-      const typing = focused instanceof HTMLElement && section.contains(focused) &&
-        focused.matches('textarea, input:not([type]), input[type="text"]')
-      const visibleHeight = viewport?.height ?? window.innerHeight
-      if (!typing || (viewport?.scale ?? 1) !== 1) fullHeight = visibleHeight
-      section.toggleAttribute('data-batting-keyboard', typing &&
-        (viewport?.scale ?? 1) === 1 && Math.max(fullHeight, window.innerHeight) - visibleHeight > 120)
-    }
-    const resize = new ResizeObserver(measure)
-    resize.observe(bar)
-    measure()
-    viewport?.addEventListener('resize', updateKeyboard)
-    window.addEventListener('resize', updateKeyboard)
-    section.addEventListener('focusin', updateKeyboard)
-    section.addEventListener('focusout', updateKeyboard)
-    return () => {
-      resize.disconnect()
-      viewport?.removeEventListener('resize', updateKeyboard)
-      window.removeEventListener('resize', updateKeyboard)
-      section.removeEventListener('focusin', updateKeyboard)
-      section.removeEventListener('focusout', updateKeyboard)
-    }
-  }, [])
 
   function savePitch() {
     const { id, location, result, type } = pitch

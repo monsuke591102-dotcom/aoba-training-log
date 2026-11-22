@@ -305,6 +305,10 @@
 .batting-stat-map { cursor: default; }
 .batting-stat-hits { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; list-style: none; }
 .batting-stat-hits [aria-pressed="true"] { border-color: #ffd27b; color: #ffefbd; font-weight: 700; }
+.batting-stat-career .batting-stat-hits > li { min-width: 0; max-width: 100%; }
+.batting-stat-career .batting-stat-hits .action {
+  min-height: 44px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: start;
+}
 .home-batting-summary header {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px;
 }

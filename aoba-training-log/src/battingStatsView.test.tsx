@@ -5,6 +5,7 @@ import { battingGames, recordHistory, type BattingGame } from './recordHistory'
 import { emptyMatchDetails } from './matchDetails'
 import { initialData } from './initialData'
 import type { TrainingRecord } from './model'
+import { battedBallDistribution } from './battedBallDistribution'
 
 const point = { x: .3, y: .45 }
 const game: BattingGame = {
@@ -52,7 +53,57 @@ test('通算は既存エンジンで再計算し、対象試合数と日付範�
   expect(html).toContain('対象 2試合 · 打席数または安打数の記録あり 2試合')
   expect(html).toContain('2026-11-18 ～ 2026-11-20')
   expect(html).toContain('AVG</small></dt><dd>.667')
-  expect(html).not.toContain('data-ball-marker')
+  expect(html).toContain('通算打球分布')
+  expect(html).toContain('位置あり 2件 · 位置未記録 1件')
+})
+
+test('通算分布は確定した打球だけを対象とし、その他のアウトには打球種類を要求する', () => {
+  const results = ['single', 'double', 'triple', 'homeRun', 'groundOut', 'flyOut', 'lineOut', 'popOut',
+    'reachedOnError', 'doublePlay', 'triplePlay', 'sacrificeBunt', 'sacrificeFly', 'fieldersChoice',
+    'walk', 'hitByPitch', 'strikeoutSwinging', 'strikeoutLooking', 'droppedThirdStrike', 'interference', 'otherOut'] as const
+  const details = emptyMatchDetails()
+  details.plateAppearances = results.map((result, order) => ({ id: String(order), order, result, status: 'complete', fieldPoint: point }))
+  details.plateAppearances.push(
+    { id: 'known', order: 22, result: 'otherOut', battedBall: 'grounder', status: 'complete', fieldPoint: point },
+    { id: 'no-point', order: 23, result: 'otherOut', battedBall: 'fly', status: 'complete' },
+    { id: 'unknown', order: 24, result: 'otherOut', status: 'complete' },
+    { id: 'draft', order: 25, result: 'single', status: 'draft', fieldPoint: point },
+  )
+  const distribution = battedBallDistribution([{ ...game, details }])
+  expect(distribution.hits.map(hit => hit.result)).toEqual([...results.slice(0, 14), 'otherOut'])
+  expect(distribution.missingPositions).toBe(1)
+})
+
+test('同日の別試合と同じ打席IDを区別し、座標をまとめて編集・削除を反映する', () => {
+  const next = { ...game, id: 'next' }
+  const html = render([game, next])
+  expect(html.match(/data-ball-marker=/g)).toHaveLength(1)
+  expect(html).toContain('>+4</text>')
+  expect(html).toContain('同日第1試合 · 第1打席 · 二塁打')
+  expect(html).toContain('同日第2試合 · 第1打席 · 二塁打')
+  const ids = battedBallDistribution([game, next]).hits.map(hit => hit.id)
+  expect(new Set(ids).size).toBe(4)
+  const [first] = next.details!.plateAppearances
+  const edited = { ...next, details: { ...next.details!, plateAppearances: [
+    { ...first, result: 'reachedOnError' as const, fieldPoint: { x: .7, y: .6 } },
+  ] } }
+  const updated = render([game, edited])
+  expect(updated.match(/data-ball-marker=/g)).toHaveLength(2)
+  expect(updated).toContain('位置あり 3件')
+  expect(updated).toContain('同日第2試合 · 第1打席 · 失策')
+  expect(updated).not.toContain('同日第2試合 · 第2打席')
+})
+
+test('簡易集計に詳細打席が残っていても通算分布から除外し、ゼロ件を説明する', () => {
+  const simple = { ...game, id: 'simple', details: { ...game.details!,
+    source: { ...game.details!.source, batting: 'summary' as const },
+    summary: { batting: { appearances: 3, hits: 1 } },
+  } }
+  const html = render([game, simple, { id: 'legacy', date: game.date }])
+  expect(html).toContain('対象 3試合 · 位置あり 2件 · 位置未記録 0件')
+  expect(html).toContain('詳細記録のない 2試合は、打球数・位置未記録数を算出できません')
+  expect(html).not.toContain('同日第2試合 · 第1打席')
+  expect(render([])).toContain('位置を記録した確定打席はありません。')
 })
 
 test('簡易集計を尊重し、不足値のある試合を含む通算を確定値として表示しない', () => {

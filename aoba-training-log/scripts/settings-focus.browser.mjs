@@ -465,6 +465,7 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
       })()`), true)
       await click('② 打席内容')
       await select('打席結果', 'single')
+      await click('球場図で打球位置を指定')
       await click('打席を確定')
       await click('第1打席を編集')
       await click('② 打席内容')
@@ -506,6 +507,22 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
       assert.equal(details.plateAppearances[0].pitches[0].result, 'hit')
       assert.equal(details.baserunning.length, 0)
       assert.deepEqual(details.fielding[0].credits, ['putout'])
+      await click('練習履歴へ戻る')
+      await click('通算打撃成績')
+      const hit = '.batting-stat-career .batting-stat-hits button'
+      await waitFor(() => evaluate(`!!document.querySelector('${hit}')`), 'career spray chart')
+      await evaluate(`document.querySelector('${hit}').focus()`)
+      const space = { key: ' ', code: 'Space', windowsVirtualKeyCode: 32 }
+      await command('Input.dispatchKeyEvent', { ...space, type: 'keyDown', text: ' ' })
+      await command('Input.dispatchKeyEvent', { ...space, type: 'keyUp' })
+      await waitFor(() => evaluate(`document.querySelector('${hit}').getAttribute('aria-pressed') === 'true'`), 'keyboard selection')
+      assert.deepEqual(await evaluate(`(() => {
+        const button = document.querySelector('${hit}');
+        const boxes = [button, document.querySelector('.batting-stat-career svg')].map(el => el.getBoundingClientRect());
+        return { result: button.textContent.includes('二塁打'), fits: boxes.every(box => box.left >= 0 && box.right <= ${width}),
+          touchTarget: boxes[0].height >= 44 };
+      })()`), { result: true, fits: true, touchTarget: true })
+      await click('練習履歴へ戻る')
     })
   }
 

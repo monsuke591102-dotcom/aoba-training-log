@@ -4,6 +4,7 @@ import { BallFieldDrawing } from './BattingDiagrams'
 import { resultLabels } from './BattingEditor'
 import { aggregateBattingStats, calculateMatchBattingStats, type BattingStats } from './battingStats'
 import type { BattingGame } from './recordHistory'
+import { battedBallDistribution } from './battedBallDistribution'
 
 const rates = [['avg', '打率', 'AVG'], ['obp', '出塁率', 'OBP'], ['slg', '長打率', 'SLG'], ['ops', 'OPS', '']] as const
 const counts = [
@@ -58,12 +59,11 @@ function StatsCard({ stats }: { stats: BattingStats }) {
   </>
 }
 
-function HitLocations({ game }: { game: BattingGame }) {
+function HitLocations({ hits, career = false }: {
+  hits: ReturnType<typeof battedBallDistribution>['hits']
+  career?: boolean
+}) {
   const [selected, setSelected] = useState<string>()
-  const hits = [...(game.details?.plateAppearances ?? [])]
-    .sort((a, b) => a.order - b.order)
-    .flatMap(row => row.status === 'complete' && row.fieldPoint && row.result
-      ? [{ id: row.id, order: row.order, point: row.fieldPoint, result: resultLabels[row.result] }] : [])
   const groups = new Map<string, typeof hits>()
   for (const hit of hits) {
     const key = JSON.stringify([hit.point.x, hit.point.y])
@@ -74,16 +74,13 @@ function HitLocations({ game }: { game: BattingGame }) {
   const all = [...groups.values()]
   const active = all.find(group => group.some(hit => hit.id === selected))
   const ordered = active ? [...all.filter(group => group !== active), active] : all
-  return <section className="batting-stat-field">
-    <h3>記録した打球位置</h3>
-    {game.details?.source.batting === 'summary' && <p className="hint">球場図には確定した詳細記録の位置を表示します。</p>}
-    {hits.length === 0 ? <p className="hint">位置を記録した確定打席はありません。</p> : <>
+  return hits.length === 0 ? <p className="hint">位置を記録した確定打席はありません。</p> : <>
       <div className="ball-field batting-stat-map">
         <BallFieldDrawing>
           {ordered.map(group => {
             const { x, y } = group[0].point
             const current = group.find(hit => hit.id === selected)
-            const label = current?.order ?? (group.length > 1 ? '+' + group.length : group[0].order)
+            const label = group.length > 1 && (career || !current) ? '+' + group.length : (current ?? group[0]).order
             return <g key={group[0].id} data-ball-marker="">
               <circle cx={x * 300} cy={y * 260} r={current ? 13 : 11} fill={current ? '#fff2ac' : '#ffce68'} stroke="#13263b" strokeWidth="2" />
               <text x={x * 300} y={y * 260} dominantBaseline="central" textAnchor="middle" fill="#142238"
@@ -96,10 +93,21 @@ function HitLocations({ game }: { game: BattingGame }) {
       <ul className="batting-stat-hits">
         {hits.map(hit => <li key={hit.id}><button type="button" className="action"
           aria-pressed={selected === hit.id} onClick={() => setSelected(hit.id)}>
-          第{hit.order}打席 · {hit.result}
+          {career && <>{hit.date} · 同日第{hit.gameNumber}試合{hit.opponent && ' · ' + hit.opponent} · </>}
+          第{hit.order}打席 · {resultLabels[hit.result]}
         </button></li>)}
       </ul>
-    </>}
+    </>
+}
+
+function CareerHitLocations({ games }: { games: readonly BattingGame[] }) {
+  const { hits, missingPositions, unavailableGames } = battedBallDistribution(games)
+  return <section className="batting-stat-field batting-stat-career">
+    <h3>通算打球分布</h3>
+    <p className="hint">対象 {games.length}試合 · 位置あり {hits.length}件 · 位置未記録 {missingPositions}件（詳細記録から判定）</p>
+    {unavailableGames > 0 && <p className="hint">簡易集計または詳細記録のない {unavailableGames}試合は、打球数・位置未記録数を算出できません。</p>}
+    <p className="hint">球場図は概略位置を示します。距離などの実測値ではありません。</p>
+    <HitLocations hits={hits} career />
   </section>
 }
 
@@ -121,6 +129,14 @@ export function BattingStatsView({ games, game, onClose, backLabel = '練習履�
     {!game && <p className="hint">対象試合すべてで値が揃った項目を合算します。欠けている項目の通算値と、必要な値が揃わない率は「—」です。</p>}
     {recorded === 0 && summaries.every(summary => summary.rbi === null) && <p className="hint">集計できる打撃記録がありません。</p>}
     <StatsCard stats={stats} />
-    {game && <HitLocations key={game.id} game={game} />}
+    {game ? <section className="batting-stat-field">
+      <h3>記録した打球位置</h3>
+      {game.details?.source.batting === 'summary' && <p className="hint">球場図には確定した詳細記録の位置を表示します。</p>}
+      <HitLocations key={game.id} hits={[...(game.details?.plateAppearances ?? [])]
+        .sort((a, b) => a.order - b.order)
+        .flatMap(row => row.status === 'complete' && row.fieldPoint && row.result
+          ? [{ id: row.id, order: row.order, point: row.fieldPoint, result: row.result, date: game.date,
+            gameNumber: 1, opponent: game.details?.opponent }] : [])} />
+    </section> : <CareerHitLocations games={games} />}
   </section>
 }

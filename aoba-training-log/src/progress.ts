@@ -1,30 +1,57 @@
 import { hasReflection } from './activities'
-import { fromLocalDate, localDate } from './dates'
+import { fromLocalDate, localDate, monthDates, shiftDate } from './dates'
 import type { LocalDate, TrainingData } from './model'
 import { plannedMenuIds, routineItemForMenu } from './routines'
 import { currentGoal, weekDates } from './training'
 
-export function dailyStats(data: TrainingData, date: LocalDate, today = localDate(new Date())) {
+function dailyGoalEntries(data: TrainingData, date: LocalDate, today: LocalDate) {
   const plan = data.plans.find(item => item.date === date)
-  if (plan?.kind === '休養日' || data.rests.some(item => item.date === date)) return { entries: [], rate: null }
+  if (plan?.kind === '休養日' || data.rests.some(item => item.date === date)) return []
   const planned = plannedMenuIds(data, date, today)
   const skipped = new Set(data.skippedMenus.filter(item => item.date === date).map(item => item.menuId))
   const records = data.records.filter(record => record.date === date)
   const recorded = new Set(records.map(record => record.menuId))
-  const entries = [...data.menus, ...(data.deletedMenus ?? [])].flatMap(menu => {
+  return [...data.menus, ...(data.deletedMenus ?? [])].flatMap(menu => {
     if (skipped.has(menu.id) || (!planned.has(menu.id) && !recorded.has(menu.id))) return []
     const rule = routineItemForMenu(data, date, menu.id)
     const goal = rule ? rule.target : currentGoal(data.goals, 'daily-menu', date, menu.id)
-    if (!goal?.amount || (!rule && goal.unit !== menu.unit)) return []
+    if (!goal?.amount || (!rule && date >= today && goal.unit !== menu.unit)) return []
     const matching = records.filter(record => record.menuId === menu.id && record.unit === goal.unit)
     if (matching.length === 0 && recorded.has(menu.id)) return []
     const amount = matching.reduce((sum, record) => sum + record.amount, 0)
     return [{ id: menu.id, name: menu.name, unit: goal.unit, target: goal.amount, amount }]
   })
+}
+
+function achievementRate(entries: readonly { amount: number; target: number }[]) {
+  if (!entries.length) return null
   const average = entries.reduce((sum, entry) => sum + Math.min(entry.amount / entry.target, 1), 0) / entries.length
   const complete = entries.every(entry => entry.amount >= entry.target)
-  const rate = entries.length ? complete ? 100 : Math.min(99, Math.round(average * 100)) : null
-  return { entries, rate }
+  return complete ? 100 : Math.min(99, Math.round(average * 100))
+}
+
+export function dailyStats(data: TrainingData, date: LocalDate, today = localDate(new Date())) {
+  const entries = dailyGoalEntries(data, date, today)
+  return { entries, rate: achievementRate(entries) }
+}
+
+// The caller supplies both inclusive boundaries. Keep each date's quantities
+// separate so the period denominator and weighting can be decided independently.
+export function goalEntriesInRange(data: TrainingData, start: LocalDate, end: LocalDate, today = localDate(new Date())) {
+  const days = []
+  const last = fromLocalDate(end)
+  for (let day = fromLocalDate(start); day <= last; day = shiftDate(day, 1)) {
+    const date = localDate(day)
+    days.push({ date, entries: dailyGoalEntries(data, date, today) })
+  }
+  return days
+}
+
+export function periodAchievement(data: TrainingData, period: 'week' | 'month', today: LocalDate) {
+  const reference = fromLocalDate(today)
+  const start = period === 'week' ? weekDates(reference)[0] : monthDates(reference).start
+  const entries = goalEntriesInRange(data, start, today, today).flatMap(day => day.entries)
+  return { start, end: today, rate: achievementRate(entries) }
 }
 
 export function levelThreshold(level: number) {

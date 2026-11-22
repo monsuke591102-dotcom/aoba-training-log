@@ -14,7 +14,7 @@ const plays: Record<NonNullable<FieldingPlay['playType']>, string> = {
 }
 const credits = [['putout', 'PO（刺殺）'], ['assist', 'A（補殺）'], ['error', 'E（失策）']] as const
 const noBallKinds = { pickoff: '牽制', caughtStealing: '盗塁阻止', other: 'その他' }
-const catchResults = { success: '捕球成功', failure: '捕球失敗', notApplicable: '捕球なし・対象外' }
+const catchResults = { success: '捕球成功', failure: '捕球失敗（捕球エラー）', notApplicable: '捕球なし・対象外' }
 const throwResults = { success: '旧記録：送球成功', error: '送球エラー', notApplicable: '旧記録：送球なし・対象外' }
 const outcomes = { out: 'アウト', safe: 'セーフ', notApplicable: '結果対象外' }
 export const fieldingSkills = [['catching', '捕球'], ['throwing', '送球'], ['judgment', '判断'], ['baseCover', 'ベースカバー'], ['other', 'その他']] as const

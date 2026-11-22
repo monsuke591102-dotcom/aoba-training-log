@@ -3,9 +3,9 @@ import { openDB } from 'idb'
 import { expect, test } from 'vitest'
 import { clearSkippedMenu, deletePlan, savePlan, saveSkippedMenu, setRest, SkipConfirmationRequired } from './activities'
 import { initialData } from './initialData'
-import { dailyStats, managementProgress } from './progress'
+import { dailyStats, goalEntriesInRange, managementProgress } from './progress'
 import { createStorage } from './storage'
-import { saveMenu, saveRecord } from './training'
+import { saveMenu, saveRecord, trainingDaysInRange } from './training'
 
 const date = '2026-11-18'
 const now = new Date(2026, 10, 18, 12)
@@ -51,6 +51,49 @@ test('未設定または単位不一致のみの実績は除外し、丸めで10
   expect(dailyStats(data, date).rate).toBeNull()
   data = record(data, 'swing', 9.99)
   expect(dailyStats(data, date).rate).toBe(99)
+})
+
+test('期間の入力は日次と同じ実績・除外条件を使い、未実施と対象なしを区別する', () => {
+  let data = record(setup(), 'swing', 12)
+  data = saveSkippedMenu(data, date, 'core', '天候不良', '', false, now)
+  data = savePlan(data, { date: '2026-11-19', kind: '休養日' })
+  data = savePlan(data, { date: '2026-11-20', kind: '自主練', menuIds: ['grounder'] })
+  const days = goalEntriesInRange(data, date, '2026-11-20', '2026-11-20')
+  expect(days).toEqual([
+    { date, entries: dailyStats(data, date, '2026-11-20').entries },
+    { date: '2026-11-19', entries: [] },
+    { date: '2026-11-20', entries: [] },
+  ])
+  expect(days[0].entries).toMatchObject([{ id: 'swing', amount: 12, target: 10 }, { id: 'tee', amount: 0, target: 10 }])
+  expect(goalEntriesInRange(data, '2026-11-20', date)).toEqual([])
+})
+
+test('後日の単位変更で過去の同単位の目標・記録と未実施予定が消えない', () => {
+  const today = '2026-11-20'
+  const updated = new Date(2026, 10, 20, 12)
+  let data = record(setup(), 'swing', 5)
+  data = savePlan(data, { date: '2026-11-19', kind: '自主練', menuIds: ['swing'] })
+  const before = goalEntriesInRange(data, date, '2026-11-19', today)
+  const swing = data.menus.find(menu => menu.id === 'swing')!
+  data = saveMenu(data, { ...swing, unit: '分' }, '', updated, '20')
+  expect(goalEntriesInRange(data, date, '2026-11-19', today)).toEqual(before)
+  expect(before[0].entries).toContainEqual(expect.objectContaining({ id: 'swing', unit: '回', target: 10, amount: 5 }))
+  expect(before[1].entries).toContainEqual(expect.objectContaining({ id: 'swing', unit: '回', target: 10, amount: 0 }))
+})
+
+test('期間内の実績日数は同日複数件を1日と数え、予定だけの日と範囲外を含めない', () => {
+  const start = '2026-11-01'
+  const end = '2026-11-30'
+  let data = record(record(setup(), 'swing', 5), 'tee', 7)
+  const template = data.records[0]
+  data = { ...data, records: [...data.records,
+    { ...template, id: 'month-start', date: start },
+    { ...template, id: 'month-end', date: end },
+    { ...template, id: 'next-month', date: '2026-12-01' },
+  ] }
+  data = savePlan(data, { date: '2026-11-19', kind: '自主練', menuIds: ids })
+  expect(trainingDaysInRange(data, start, end)).toBe(3)
+  expect(trainingDaysInRange(data, '2026-11-19', '2026-11-19')).toBe(0)
 })
 
 test('実績がある見送りは確認を要求し、記録を保全して新規の重複記録を防ぐ', () => {

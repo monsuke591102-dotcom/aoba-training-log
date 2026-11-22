@@ -144,7 +144,13 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
     if (!location || !result || !type) return
     const previous = pitches.find(row => row.id === id)
     const row: Pitch = { id: previous?.id ?? crypto.randomUUID(), order: previous?.order ?? nextOrder(pitches), location, result, type }
-    update({ pitches: previous ? pitches.map(item => item.id === previous.id ? row : item) : [...pitches, row] })
+    const next = previous ? pitches.map(item => item.id === previous.id ? row : item) : [...pitches, row]
+    const sequenceError = pitchResultError({ pitches: next })
+    if (sequenceError) {
+      setError(sequenceError)
+      return
+    }
+    update({ pitches: next })
     setPitch({})
     setError('')
   }
@@ -256,10 +262,11 @@ function PlateEditor({ previous, order, target, commit, onClose }: {
               return <li key={row.id}>
                 <p>{row.order}球目 · {type.symbol} {type.name} · {pitchLabels[row.result]} · {pitchLocationLabel(row.location)}</p>
                 <div className="form-actions">
-                  <button type="button" className="action" onClick={() => setPitch(row)}>{row.order}球目を編集</button>
+                  <button type="button" className="action" onClick={() => { setPitch(row); setError('') }}>{row.order}球目を編集</button>
                   <button type="button" className="action" onClick={() => {
                     update({ pitches: pitches.filter(item => item.id !== row.id).map((item, index) => ({ ...item, order: index + 1 })) })
                     if (pitch.id === row.id) setPitch({})
+                    setError('')
                   }}>{row.order}球目を削除</button>
                 </div>
               </li>

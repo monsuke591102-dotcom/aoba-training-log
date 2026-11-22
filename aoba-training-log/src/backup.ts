@@ -1,7 +1,10 @@
 import { fromLocalDate, isLocalDate } from './dates'
 import { categories, units } from './initialData'
 import { hasMatchDetails, isMatchDetails } from './matchDetails'
+import { isCategorySettings, readCategorySettings, writeCategorySettings, type CategorySettings } from './menuCategories'
 import { skipReasons, type TrainingData } from './model'
+import { isMonthlyGoal, readMonthlyGoals, replaceMonthlyGoals, type GoalStorage, type MonthlyGoal } from './monthlyGoals'
+import type { Change } from './storage'
 import { trainingKinds } from './training'
 
 const appId = 'aoba-training-log'
@@ -17,6 +20,8 @@ export interface Backup {
   createdAt: string
   dataVersion: typeof dataVersion
   data: TrainingData
+  monthlyGoals?: MonthlyGoal[]
+  menuCategories?: CategorySettings
 }
 
 export class BackupError extends Error {}
@@ -143,10 +148,16 @@ function backupVersionFor(data: TrainingData): Backup['backupVersion'] {
   return hasMatchDetails(data) ? detailedBackupVersion : backupVersion
 }
 
-export function encodeBackup(data: TrainingData, now = new Date()): string {
+function validateMonthlyGoals(goals: unknown): asserts goals is MonthlyGoal[] {
+  validateRows(goals, '月別目標', isMonthlyGoal, row => row.start)
+}
+
+export function encodeBackup(data: TrainingData, now = new Date(), monthlyGoals?: MonthlyGoal[], menuCategories?: CategorySettings): string {
   validateData(data)
+  if (monthlyGoals !== undefined) validateMonthlyGoals(monthlyGoals)
+  if (menuCategories !== undefined && !isCategorySettings(menuCategories)) throw new BackupError('分類設定が不正です。')
   const backup: Backup = { appId, backupVersion: backupVersionFor(data),
-    createdAt: now.toISOString(), dataVersion, data }
+    createdAt: now.toISOString(), dataVersion, data, monthlyGoals, menuCategories }
   return JSON.stringify(backup, null, 2)
 }
 
@@ -167,7 +178,12 @@ export function decodeBackup(text: string): Backup {
   if (backupVersionFor(value.data) !== value.backupVersion) {
     throw new BackupError('試合詳細とバックアップ形式のバージョンが一致しません。')
   }
-  return { appId, backupVersion: value.backupVersion, dataVersion, createdAt: value.createdAt, data: value.data }
+  const monthlyGoals = value.monthlyGoals
+  if (monthlyGoals !== undefined) validateMonthlyGoals(monthlyGoals)
+  const menuCategories = value.menuCategories
+  if (menuCategories !== undefined && !isCategorySettings(menuCategories)) throw new BackupError('分類設定が不正です。')
+  return { appId, backupVersion: value.backupVersion, dataVersion, createdAt: value.createdAt, data: value.data,
+    ...(monthlyGoals === undefined ? {} : { monthlyGoals }), ...(menuCategories === undefined ? {} : { menuCategories }) }
 }
 
 const backupCountItems = [
@@ -210,6 +226,62 @@ export function restoreChange(backup: Backup, expected: TrainingData) {
   }
 }
 
+function sameMonthlyGoals(a: readonly MonthlyGoal[], b: readonly MonthlyGoal[]) {
+  const byMonth = new Map(a.map(goal => [goal.start, goal.days]))
+  return a.length === b.length && b.every(goal => byMonth.get(goal.start) === goal.days)
+}
+
+export async function restoreBackup(backup: Backup, expected: TrainingData, expectedGoals: MonthlyGoal[],
+  storage: GoalStorage, restore: (change: Change) => Promise<void>, expectedCategories?: CategorySettings) {
+  const change = restoreChange(backup, expected)
+  if (backup.monthlyGoals === undefined && backup.menuCategories === undefined) return restore(change)
+
+  // Reject incompatible match detail versions before changing separate browser storage.
+  change(expected)
+  const settings: { verify: () => void; apply: () => (() => void) | undefined }[] = []
+  function prepare<T>(next: T, previous: T, read: () => T, write: (setting: T) => void, same: (a: T, b: T) => boolean, label: string) {
+    settings.push({
+      verify() {
+        if (!same(read(), previous)) throw new BackupError(`確認中に${label}が変更されました。ファイルを選び直してください。`)
+      },
+      apply() {
+        if (same(previous, next)) return
+        write(next)
+        return () => { if (same(read(), next)) write(previous) }
+      },
+    })
+  }
+  if (backup.monthlyGoals !== undefined) {
+    prepare(backup.monthlyGoals, expectedGoals, () => readMonthlyGoals(storage),
+      goals => replaceMonthlyGoals(storage, goals), sameMonthlyGoals, '月別目標')
+  }
+  if (backup.menuCategories !== undefined) {
+    if (!expectedCategories) throw new BackupError('現在の分類設定を読み込めませんでした。')
+    prepare(backup.menuCategories, expectedCategories, () => readCategorySettings(storage),
+      categories => writeCategorySettings(storage, categories), (a, b) => JSON.stringify(a) === JSON.stringify(b), '分類設定')
+  }
+
+  for (const setting of settings) setting.verify()
+  // The training transaction must finish before browser-local settings are replaced.
+  await restore(change)
+
+  const undo: (() => void)[] = []
+  try {
+    for (const setting of settings) setting.verify()
+    for (const setting of settings) {
+      const revert = setting.apply()
+      if (revert) undo.push(revert)
+    }
+  } catch (error) {
+    let rollbackFailed = false
+    for (const revert of undo.reverse()) {
+      try { revert() }
+      catch { rollbackFailed = true }
+    }
+    const state = rollbackFailed ? 'ブラウザー設定の一部を元に戻せませんでした。' : 'ブラウザー設定は置き換えていません。'
+    throw new BackupError(`練習データは復元されましたが、${state} 月別目標と分類設定を確認し、必要なら同じファイルを選び直してください。`, { cause: error })
+  }
+}
 
 
 

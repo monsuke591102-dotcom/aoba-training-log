@@ -5,18 +5,20 @@ import { Baseball, Equipment, Laurel, StadiumLights } from './BaseballArt'
 import { ActivityIcon } from './Calendar'
 import { fromLocalDate, localDate, recentDays } from './dates'
 import { PlanDialog } from './PlanDialog'
+import { MonthlyProgress } from './MonthlyProgress'
 import { QuickRecords } from './QuickRecords'
 import { HomeBattingSummary } from './BattingStatsView'
 import type { BattingGame } from './recordHistory'
 import { plannedMenuIds } from './routines'
 import type { Commit } from './recordFeedback'
 import type { Category, DayKind, LocalDate, TrainingData, Unit } from './model'
-import { dailyStats, managementProgress } from './progress'
+import { dailyStats, managementProgress, periodAchievement } from './progress'
 import { currentGoal, weeklyStats } from './training'
 import { useLocalDay } from './useLocalDay'
 
 const dateLabel = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 const weekday = new Intl.DateTimeFormat('ja-JP', { weekday: 'short' })
+const shortDate = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric' })
 const quantity = new Intl.NumberFormat('ja-JP', { maximumSignificantDigits: 12 })
 const showQuantity = (amount: number, unit: string) => quantity.format(amount) + unit
 type Progress = ReturnType<typeof managementProgress>
@@ -25,19 +27,36 @@ function Meter({ value, max, label, className = '' }: { value: number; max: numb
   return <progress className={'meter ' + className} value={Math.min(value, max)} max={max} aria-label={label} />
 }
 
-function Gauge({ rate, pending }: { rate: number | null; pending: RefObject<boolean> }) {
+const gaugePeriods = ['day', 'week', 'month'] as const
+const gaugeLabels = { day: '日次', week: '週間', month: '月間' }
+type GaugePeriod = typeof gaugePeriods[number]
+
+function Gauge({ data, date, dailyRate, pending }: {
+  data: TrainingData; date: LocalDate; dailyRate: number | null; pending: RefObject<boolean>
+}) {
+  const [period, setPeriod] = useState<GaugePeriod>('day')
+  const next = gaugePeriods[(gaugePeriods.indexOf(period) + 1) % gaugePeriods.length]
+  const stats = period === 'day' ? { start: date, end: date, rate: dailyRate } : periodAchievement(data, period, date)
+  const rate = stats.rate
+  const label = gaugeLabels[period] + '達成率'
+  const start = shortDate.format(fromLocalDate(stats.start))
+  const end = shortDate.format(fromLocalDate(stats.end))
+  const range = stats.start === stats.end ? start : start + '〜' + end
+  const summary = `${label} ${range} ${rate === null ? '集計対象なし' : rate + '%'}`
   const fill = useRef<SVGCircleElement>(null)
   useEffect(() => {
     if (!pending.current) return
     pending.current = false
-    if (rate === null || !fill.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (period !== 'day' || rate === null || !fill.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const animation = fill.current.animate([
       { strokeDasharray: '0 100' },
       { strokeDasharray: rate + ' 100' },
     ], { duration: 520, easing: 'ease-out' })
     return () => animation.cancel()
-  }, [pending, rate])
-  return <div className="gauge" role="img" aria-label={rate === null ? '今日の達成率 集計対象なし' : '今日の目標達成率 ' + rate + '%'}>
+  }, [pending, period, rate])
+  return <div className="gauge">
+    <button type="button" className="gauge-toggle" aria-label={summary + '、' + gaugeLabels[next] + 'に切り替える'}
+      onClick={() => setPeriod(next)}>
     <svg viewBox="0 0 140 140" aria-hidden="true">
       <defs>
         <linearGradient id="ring-metal" x1="0" y1="0" x2="1" y2="1">
@@ -56,10 +75,13 @@ function Gauge({ rate, pending }: { rate: number | null; pending: RefObject<bool
         strokeDasharray={rate + ' 100'} transform="rotate(-90 70 70)" />}
       <circle cx="70" cy="70" r="49" className="gauge-inner" stroke="url(#ring-metal)" />
     </svg>
-    <div className="gauge-text" aria-hidden="true">
+    <span className="gauge-text" aria-hidden="true">
       <strong>{rate === null ? '—' : <>{rate}<small>%</small></>}</strong>
-      <span>{rate === null ? '集計対象なし' : rate === 100 ? '目標クリア' : '日次達成率'}</span>
-    </div>
+      <span>{label}</span>
+      <small>{period === 'day' ? (rate === null ? '集計対象なし' : rate === 100 ? '目標クリア' : range) : range}</small>
+    </span>
+    </button>
+    <span className="gauge-announcement" role="status">{summary}</span>
   </div>
 }
 
@@ -153,13 +175,14 @@ export function Home({ data, commit, onPlan, onReflection, onBadge, pendingGauge
     <div className="arena">
       <StadiumLights />
       <Status progress={progress} />
+      <MonthlyProgress data={data} today={date} />
       <section className={'scoreboard' + (daily.rate === 100 ? ' achieved' : '')}>
         <header className="scoreboard-heading">
           <h1>今日のトレーニング</h1>
           <p className="date"><time dateTime={date}>{dateLabel.format(today)}</time></p>
         </header>
         <div className="scoreboard-body">
-          <Gauge rate={daily.rate} pending={pendingGauge} />
+          <Gauge data={data} date={date} dailyRate={daily.rate} pending={pendingGauge} />
           <div className="score-plan">
             <div><strong>今日の予定</strong>
               <p>{plan ? <><ActivityIcon kind={plan.kind} />{plan.kind}{planNames.length > 0 && ' · ' + planNames.join('、')}</> : '予定区分なし'}

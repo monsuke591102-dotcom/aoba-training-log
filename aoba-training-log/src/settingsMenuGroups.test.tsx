@@ -16,7 +16,7 @@ test('固定の分類順で全分類を閉じ、非表示メニューを件数�
   const data = initialData()
   const menus = data.menus.map(menu => menu.id === 'swing' ? { ...menu, enabled: false } : menu)
   const html = renderSettings({ ...data, menus })
-  const groups = [...html.matchAll(/<details class="menu-group" data-menu-category="([^"]+)"><summary>.*?<span>(\d+)種目/g)]
+  const groups = [...html.matchAll(/<details class="menu-group" data-menu-category="([^"]+)" data-category-id="[^"]*"><summary>.*?<span>(\d+)種目/g)]
   expect(groups.map(match => [match[1], Number(match[2])])).toEqual([
     ['打撃', 3], ['守備', 5], ['走塁', 3], ['体づくり', 4], ['その他', 3],
   ])

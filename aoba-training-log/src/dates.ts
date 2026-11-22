@@ -32,3 +32,9 @@ export function monthGrid(month: Date): LocalDate[] {
   return Array.from({ length: Math.ceil((leading + length) / 7) * 7 },
     (_, index) => localDate(shiftDate(first, index - leading)))
 }
+
+export function monthDates(date: Date, offset = 0) {
+  const first = new Date(date.getFullYear(), date.getMonth() + offset, 1)
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0)
+  return { start: localDate(first), end: localDate(last), length: last.getDate() }
+}

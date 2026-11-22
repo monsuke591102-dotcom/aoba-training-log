@@ -33,7 +33,9 @@ export function snapshotApi(session: Session, signal: AbortSignal): SnapshotApi 
       const rows = await response.json()
       if (!Array.isArray(rows) || rows.length > 1) throw new Error('クラウドの応答が不正です。')
       if (!rows.length) return null
-      const { data, revision } = rows[0]
+      const row = rows[0]
+      if (!row || typeof row !== 'object' || Array.isArray(row)) throw new Error('クラウドの応答が不正です。')
+      const { data, revision } = row
       validateData(data)
       requireCloudCompatibleMatchData(data)
       return { data, revision: readRevision(revision) }
@@ -51,7 +53,11 @@ export function snapshotApi(session: Session, signal: AbortSignal): SnapshotApi 
       if (!Array.isArray(rows) || rows.length !== 1) throw new Error('更新の応答が不正です。')
       if (rows[0]?.status === 'conflict' && rows[0].revision === null) return null
       if (rows[0]?.status !== 'written') throw new Error('更新の応答が不正です。')
-      return readRevision(rows[0].revision)
+      const revision = readRevision(rows[0].revision)
+      if (revision !== (flight.revision ?? 0) + 1) {
+        throw new Error('書き込み後のrevisionが送信内容と一致しません。')
+      }
+      return revision
     },
   }
 }

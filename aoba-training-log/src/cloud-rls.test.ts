@@ -2,6 +2,10 @@ import migration from '../supabase/migrations/202611180001_training_log_snapshot
 import writeMigration from '../supabase/migrations/202611200001_training_log_snapshot_write_v2.sql?raw'
 import rejectMatchDetailsMigration from '../supabase/migrations/202611200002_reject_local_match_details.sql?raw'
 import protectSnapshotMigration from '../supabase/migrations/202611200003_deny_local_match_details_at_storage.sql?raw'
+import audit from '../supabase/audit-snapshot-readonly.sql?raw'
+import stopLegacy from '../supabase/cutover-stop-legacy.sql?raw'
+import installV2 from '../supabase/cutover-install-v2.sql?raw'
+import verifyCutover from '../supabase/cutover-verify-readonly.sql?raw'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { initialData } from './initialData'
@@ -14,10 +18,10 @@ const table = 'public.training_log_snapshots'
 const data = JSON.stringify(initialData())
 let db: PGlite
 
-beforeAll(async () => {
-  db = new PGlite()
+async function createFixtureDatabase() {
+  const fixture = new PGlite()
   // Minimal stand-ins for the Supabase Auth schema and request JWT context.
-  await db.exec(`
+  await fixture.exec(`
     create role anon;
     create role authenticated;
     create schema auth;
@@ -27,7 +31,12 @@ beforeAll(async () => {
     grant usage on schema auth to authenticated;
     insert into auth.users values ('${a}'), ('${b}');
   `)
-  await db.exec(migration)
+  await fixture.exec(migration)
+  return fixture
+}
+
+beforeAll(async () => {
+  db = await createFixtureDatabase()
   // Exercise the table guard while the old RPC and first-write INSERT are still enabled.
   await db.exec(protectSnapshotMigration)
 }, 15_000)
@@ -50,6 +59,159 @@ test('同じrevisionの更新は一度だけ成功し、古い更新は競合を
   expect((await update(1)).rows).toEqual([{ status: 'conflict', revision: null }])
   expect((await db.query(`select data, revision from ${table}`)).rows).toEqual([{ data: saved, revision: 2 }])
 })
+
+test('監査SELECTは読取専用トランザクションで列権限と件数だけを確認できる', async () => {
+  await db.exec('reset role; begin read only')
+  try {
+    const results = await db.exec(audit)
+    expect(results[0].rows).toMatchObject([{ has_cli_history: false, transaction_read_only: true }])
+    expect(results[1].rows).toMatchObject([{
+      proname: 'training_log_update_snapshot', security_definer: true,
+      authenticated_execute: true, anon_execute: false, public_execute: false,
+    }])
+    expect(results[2].rows).toMatchObject([{ authenticated_insert: true, authenticated_update: false }])
+    expect(results.at(-1)?.rows).toMatchObject([{
+      total_rows: 1, rows_with_match_details: 0, rows_with_uninspectable_match_format: 0,
+    }])
+  } finally {
+    await db.exec('rollback')
+  }
+})
+
+test('適用前からある試合詳細はNOT VALID制約の追加後も残り、詳細を省いた置換は制約だけでは防げない', async () => {
+  const fixture = await createFixtureDatabase()
+  try {
+    const time = '2026-11-20T00:00:00.000Z'
+    const details = JSON.stringify({ ...initialData(), matches: [{ id: 'legacy-detail', date: '2026-11-20',
+      good: '', improve: '', createdAt: time, updatedAt: time, details: emptyMatchDetails() }] })
+    await fixture.query(`insert into ${table}(user_id, data) values ($1, $2::jsonb)`, [a, details])
+    await fixture.exec(writeMigration)
+    await fixture.exec(rejectMatchDetailsMigration)
+    await fixture.exec(protectSnapshotMigration)
+    const read = () => fixture.query(`select revision, jsonb_path_exists(data, '$.matches[*] ? (exists (@.details))') as has_details from ${table}`)
+    expect((await read()).rows).toEqual([{ revision: 1, has_details: true }])
+    expect((await fixture.query("select convalidated from pg_constraint where conname = 'training_log_no_local_match_details'")).rows)
+      .toEqual([{ convalidated: false }])
+    await expect(fixture.exec(`alter table ${table} validate constraint training_log_no_local_match_details`))
+      .rejects.toMatchObject({ code: '23514' })
+    await fixture.exec('set role authenticated')
+    await fixture.query("select set_config('request.jwt.claim.sub', $1, false)", [a])
+    const write = (snapshot: string) => fixture.query('select * from public.training_log_write_snapshot_v2(1, $1::jsonb)', [snapshot])
+    await expect(write(details)).rejects.toMatchObject({ code: '22023' })
+    expect((await read()).rows).toEqual([{ revision: 1, has_details: true }])
+    expect((await write(data)).rows).toEqual([{ status: 'written', revision: 2 }])
+    expect((await read()).rows).toEqual([{ revision: 2, has_details: false }])
+  } finally {
+    await fixture.close()
+  }
+})
+
+async function loginFixture(fixture: PGlite, user = a) {
+  await fixture.exec('reset role; set role authenticated')
+  await fixture.query("select set_config('request.jwt.claim.sub', $1, false)", [user])
+}
+
+async function expectLegacyWritesDenied(fixture: PGlite) {
+  await expect(fixture.query('select * from public.training_log_update_snapshot(2, $1::jsonb)', [data]))
+    .rejects.toMatchObject({ code: '42501' })
+  await expect(fixture.query(`insert into ${table}(data) values ($1::jsonb)`, [data]))
+    .rejects.toMatchObject({ code: '42501' })
+  await expect(fixture.query(`update ${table} set data = $1::jsonb`, [data]))
+    .rejects.toMatchObject({ code: '42501' })
+}
+
+const cutoverMigrations = [writeMigration, rejectMatchDetailsMigration, protectSnapshotMigration]
+const withoutTransaction = (sql: string) => sql.replace(/^begin;\s*$/im, '').replace(/^commit;\s*$/im, '')
+
+test('実行候補には正規の3マイグレーション本体を同じ順序で含める', () => {
+  const bundled = installV2.split('-- BEGIN canonical migration bodies')[1].split('-- END canonical migration bodies')[0]
+  const normalize = (sql: string) => sql.replace(/\r\n/g, '\n').trim()
+  expect(normalize(bundled)).toEqual(cutoverMigrations.map(sql => normalize(withoutTransaction(sql))).join('\n\n'))
+  expect(installV2.match(/^(BEGIN|COMMIT);\s*$/gim)).toHaveLength(2)
+})
+
+test('既存SQLを別々に確定すると旧書き込みは止まるが、詳細保護前の新版書き込みが開く', async () => {
+  const fixture = await createFixtureDatabase()
+  try {
+    await fixture.exec(writeMigration)
+    await loginFixture(fixture)
+    await expectLegacyWritesDenied(fixture)
+    const time = '2026-11-20T00:00:00.000Z'
+    const details = JSON.stringify({ ...initialData(), matches: [{ id: 'gap', date: '2026-11-20',
+      good: '', improve: '', createdAt: time, updatedAt: time, details: emptyMatchDetails() }] })
+    expect((await fixture.query('select * from public.training_log_write_snapshot_v2(null, $1::jsonb)', [details])).rows)
+      .toEqual([{ status: 'written', revision: 1 }])
+  } finally {
+    await fixture.close()
+  }
+}, 20_000)
+
+test('旧権限を先に確定して停止し、途中失敗・復旧点・新版再適用を隔離DBで検証する', async () => {
+  const fixture = await createFixtureDatabase()
+  let recovered: PGlite | undefined
+  try {
+    await loginFixture(fixture)
+    await fixture.query(`insert into ${table}(data) values ($1::jsonb)`, [data])
+    expect((await fixture.query('select * from public.training_log_update_snapshot(1, $1::jsonb)', [data])).rows)
+      .toEqual([{ status: 'updated', revision: 2 }])
+    await fixture.exec('reset role')
+    await expect(fixture.exec(installV2)).rejects.toThrow('Legacy effective write permission remains')
+    await fixture.exec('rollback')
+    await fixture.exec(stopLegacy)
+    const snapshot = await fixture.dumpDataDir()
+    await expect(fixture.exec(installV2.replace('-- END canonical migration bodies', 'select 1 / 0;')))
+      .rejects.toMatchObject({ code: '22012' })
+    await fixture.exec('rollback')
+    expect((await fixture.query("select to_regprocedure('public.training_log_write_snapshot_v2(bigint,jsonb)') as rpc")).rows)
+      .toEqual([{ rpc: null }])
+    await loginFixture(fixture)
+    await expectLegacyWritesDenied(fixture)
+    expect((await fixture.query(`select data, revision from ${table}`)).rows).toEqual([{ data: initialData(), revision: 2 }])
+    await loginFixture(fixture, b)
+    await expectLegacyWritesDenied(fixture)
+
+    recovered = new PGlite({ loadDataDir: snapshot })
+    await loginFixture(recovered)
+    await expectLegacyWritesDenied(recovered)
+    expect((await recovered.query(`select data, revision from ${table}`)).rows).toEqual([{ data: initialData(), revision: 2 }])
+    await recovered.exec('reset role')
+    const before = await recovered.query(`select data, revision, updated_at from ${table}`)
+    const beforeAudit = await recovered.exec(verifyCutover)
+    await recovered.exec(installV2)
+    const afterAudit = await recovered.exec(verifyCutover)
+    const tally = (results: typeof afterAudit) => results.find(result => 'snapshot_count' in (result.rows[0] ?? {}))?.rows
+    expect(tally(afterAudit)).toEqual(tally(beforeAudit))
+    expect(tally(afterAudit)).toMatchObject([{ snapshot_count: 1, rows_with_match_details: 0, min_revision: 2 }])
+    expect((await recovered.query(`select data, revision, updated_at from ${table}`)).rows).toEqual(before.rows)
+    expect((await recovered.query(`select conname, convalidated from pg_constraint
+      where conrelid = '${table}'::regclass and contype = 'c' order by conname`)).rows).toEqual([
+      { conname: 'training_log_data_shape', convalidated: true },
+      { conname: 'training_log_no_local_match_details', convalidated: true },
+      { conname: 'training_log_snapshots_revision_check', convalidated: true },
+    ])
+    const { rows } = await recovered.query(`select p.prosecdef, p.proconfig,
+      has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated,
+      has_function_privilege('anon', p.oid, 'EXECUTE') as anon
+      from pg_proc p where p.oid = 'public.training_log_write_snapshot_v2(bigint,jsonb)'::regprocedure`)
+    expect(rows).toEqual([{ prosecdef: true, proconfig: ['search_path=pg_catalog'], authenticated: true, anon: false }])
+    await loginFixture(recovered)
+    await expectLegacyWritesDenied(recovered)
+    const time = '2026-11-20T00:00:00.000Z'
+    const match = { id: 'recovery', date: '2026-11-20', good: '', improve: '', createdAt: time, updatedAt: time }
+    const write = (revision: number | null, json = data) =>
+      recovered!.query('select * from public.training_log_write_snapshot_v2($1, $2::jsonb)', [revision, json])
+    await expect(write(2, JSON.stringify({ ...initialData(), matches: [{ ...match, details: emptyMatchDetails() }] })))
+      .rejects.toMatchObject({ code: '22023' })
+    expect((await write(2)).rows).toEqual([{ status: 'written', revision: 3 }])
+    expect((await write(2)).rows).toEqual([{ status: 'conflict', revision: null }])
+    await loginFixture(recovered, b)
+    await expectLegacyWritesDenied(recovered)
+    expect((await write(null)).rows).toEqual([{ status: 'written', revision: 1 }])
+  } finally {
+    await recovered?.close()
+    await fixture.close()
+  }
+}, 30_000)
 
 test('別ユーザーの行にアクセスできず、RPCは呼び出した本人の行だけを更新する', async () => {
   await signIn(b)
@@ -121,6 +283,44 @@ describe('新版RPC', () => {
     await signIn(parityUser)
     await write(null)
     await write(1)
+  })
+
+  test('適用後のSQL権限は認証済みロールの本人読取と新版RPCに限定する', async () => {
+    await db.exec('reset role')
+    const { rows } = await db.query(`select
+      has_function_privilege('authenticated', 'public.training_log_write_snapshot_v2(bigint,jsonb)', 'EXECUTE') as new_authenticated,
+      has_function_privilege('anon', 'public.training_log_write_snapshot_v2(bigint,jsonb)', 'EXECUTE') as new_anon,
+      has_function_privilege('authenticated', 'public.training_log_update_snapshot(bigint,jsonb)', 'EXECUTE') as old_authenticated,
+      has_schema_privilege('authenticated', 'training_log_private', 'USAGE') as private_schema,
+      has_table_privilege('authenticated', '${table}', 'SELECT') as read_authenticated,
+      has_table_privilege('anon', '${table}', 'SELECT') as read_anon,
+      has_any_column_privilege('authenticated', '${table}', 'INSERT') as insert_authenticated,
+      has_any_column_privilege('authenticated', '${table}', 'UPDATE') as update_authenticated,
+      has_table_privilege('authenticated', '${table}', 'DELETE') as delete_authenticated,
+      (select relrowsecurity from pg_class where oid = '${table}'::regclass) as rls
+    `)
+    expect(rows).toEqual([{ new_authenticated: true, new_anon: false, old_authenticated: false, private_schema: false,
+      read_authenticated: true, read_anon: false, insert_authenticated: false, update_authenticated: false,
+      delete_authenticated: false, rls: true }])
+  })
+
+  test('仮に旧RPCを残すと同じrevisionの競合は防げても、再取得したrevisionで新しい項目を落とせる', async () => {
+    await db.exec('reset role; begin')
+    try {
+      await db.exec('grant execute on function public.training_log_update_snapshot(bigint,jsonb) to authenticated')
+      await signIn(parityUser)
+      const match = { id: 'cutover', date: '2026-11-20', good: '試合の振り返り', improve: '',
+        createdAt: '2026-11-20T00:00:00.000Z', updatedAt: '2026-11-20T00:00:00.000Z' }
+      const newer = { ...initialData(), matches: [match] }
+      expect((await write(2, JSON.stringify(newer))).rows).toEqual([{ status: 'written', revision: 3 }])
+      expect((await update(2)).rows).toEqual([{ status: 'conflict', revision: null }])
+      expect((await db.query(`select data, revision from ${table}`)).rows).toEqual([{ data: newer, revision: 3 }])
+      expect((await update(3)).rows).toEqual([{ status: 'updated', revision: 4 }])
+      expect((await db.query(`select data, revision from ${table}`)).rows).toEqual([{ data: initialData(), revision: 4 }])
+      expect((await write(3, JSON.stringify(newer))).rows).toEqual([{ status: 'conflict', revision: null }])
+    } finally {
+      await db.exec('rollback; reset role')
+    }
   })
 
   test('v2切り替えで旧書き込みを閉じ、本人の作成・更新と読み取りだけを維持する', async () => {

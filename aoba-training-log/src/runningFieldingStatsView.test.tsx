@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
+import { runningPlayForSave, stealChoices } from './BaserunningEditor'
 import { emptyMatchDetails } from './matchDetails'
 import type { BattingGame } from './recordHistory'
 import { RunningFieldingStatsView, type RunningFieldingKind } from './RunningFieldingStatsView'
@@ -41,6 +42,17 @@ test('守備率と位置別成績を表示し、公式成績から観察を分�
   expect(html).toContain('保存済みの観察を見る')
   expect(html).toContain('打球を正面で捕球した')
   expect(html).not.toContain('下書きの観察')
+})
+
+test.each(stealChoices)('$labelだけの試合は成功数・盗塁死数と0%または100%を表示する', choice => {
+  const play = runningPlayForSave({ id: 'only-run', order: 1, status: 'draft' }, 'complete', choice)
+  const selected = { ...game, details: { ...emptyMatchDetails(), baserunning: [play] } }
+  const success = choice.result === 'stolenBase'
+  for (const html of [view('running', [selected], selected), view('running', [selected])]) {
+    expect(html).toContain(`盗塁成功 SB</dt><dd>${success ? 1 : 0}`)
+    expect(html).toContain(`盗塁死 CS</dt><dd>${success ? 0 : 1}`)
+    expect(html).toContain(`盗塁成功率</dt><dd>${success ? '100%' : '0%'}`)
+  }
 })
 
 test('通算は実数で合算し、一部試合不足で位置別や率を未算出にする', () => {

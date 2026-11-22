@@ -6,7 +6,7 @@ import { decodeBackup, encodeBackup } from './backup'
 import { importCandidates, parseSchedule, type TrainingSheet } from './excelPlan'
 import { initialData } from './initialData'
 import type { RoutineItem, RoutineVersion, TrainingData } from './model'
-import { dailyStats, managementProgress } from './progress'
+import { dailyStats, goalEntriesInRange, managementProgress } from './progress'
 import { saveQuickRecord } from './quickRecord'
 import { changeRoutineMode, dailyRoutine, nextMonth, plannedMenuIds, routineForDate, saveRoutine, selectRoutineMenu, setRoutineAddition, setRoutineCompletion } from './routines'
 import { syncOnce, type RemoteSnapshot, type SnapshotApi } from './sync'
@@ -82,6 +82,27 @@ test('翌月コピーと月途中の変更で過去の記録・目標・達成�
   expect(mid.records).toEqual(data.records)
   expect(mid.goals).toEqual(data.goals)
   expect(managementProgress(mid, now)).toEqual(managementProgress(data, now))
+})
+
+test('月・年をまたぐ期間でも日付時点の計画版と日次目標をそれぞれ使用する', () => {
+  const before = '2026-12-31'
+  const after = '2027-01-01'
+  const setupDate = new Date(2026, 11, 30, 12)
+  const base = initialData()
+  const tee = base.menus.find(menu => menu.id === 'tee')!
+  let data = saveMenu(base, tee, '', setupDate, '5')
+  data = saveMenu(data, tee, '', new Date(2027, 0, 1, 12), '15')
+  const swing: RoutineItem = { id: 'routine-swing', menuId: 'swing', name: '素振り', mode: 'quantity',
+    recordUnit: '回', target: { amount: 20, unit: '回' }, schedule: 'daily', weekdays: [], note: '', condition: '' }
+  data = saveRoutine(data, { id: 'v1', startsOn: before, items: [swing] }, setupDate)
+  data = saveRoutine(data, { id: 'v2', startsOn: after, items: [{ ...swing, target: { amount: 30, unit: '回' } }] }, setupDate)
+  for (const date of [before, after] as const) data = savePlan(data, { date, kind: '自主練', menuIds: ['tee'] })
+  expect(goalEntriesInRange(data, before, after, after).map(day => ({
+    date: day.date, targets: Object.fromEntries(day.entries.map(entry => [entry.id, entry.target])),
+  }))).toEqual([
+    { date: before, targets: { swing: 20, tee: 5 } },
+    { date: after, targets: { swing: 30, tee: 15 } },
+  ])
 })
 
 test('計画と任意追加をJSONで往復し、既存版のJSONも読み込める', () => {

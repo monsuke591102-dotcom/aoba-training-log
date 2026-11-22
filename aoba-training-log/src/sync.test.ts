@@ -6,6 +6,7 @@ import { decodeBackup, encodeBackup, restoreChange } from './backup'
 import { initialData } from './initialData'
 import type { TrainingData } from './model'
 import { managementProgress } from './progress'
+import { createStorage } from './storage'
 import { chooseSnapshot, syncOnce, type RemoteSnapshot, type SnapshotApi } from './sync'
 import { deleteRecord, saveGoals, saveMenu, saveRecord } from './training'
 
@@ -95,6 +96,34 @@ test('オフライン保存を再起動後に送信し、応答消失後に再�
   expect(cloud.writes).toBe(1)
   expect((await restarted.read()).flight).toBeUndefined()
   expect(cloud.snapshot?.data.records).toHaveLength(1)
+})
+
+test('旧PWAが切替後も動作すると旧API書込は拒否され、再起動後も未送信データを保持する', async () => {
+  const name = 'cached-client-cutover-' + crypto.randomUUID()
+  const oldStore = createAccountStorage('owner', name)
+  const cloud = new Cloud()
+  cloud.snapshot = { revision: 1, data: makeRecord(initialData()) }
+  await drain(oldStore, cloud)
+  const pending = await oldStore.save(data => makeRecord(data, '20', data.records[0].id))
+  const denied = { read: () => cloud.read(), async write() { throw Error('旧RPCの書き込み拒否') } }
+  await expect(drain(oldStore, denied)).rejects.toThrow('旧RPCの書き込み拒否')
+  const reopened = createAccountStorage('owner', name)
+  expect(await reopened.read()).toMatchObject({ revision: 1, data: pending.data, flight: { data: pending.data } })
+  expect(cloud.snapshot.revision).toBe(1)
+
+  const newDevice = create()
+  await drain(newDevice, cloud)
+  await newDevice.save(data => makeRecord(data, '30', data.records[0].id))
+  await drain(newDevice, cloud)
+  const conflict = await drain(reopened, denied)
+  expect(conflict).toMatchObject({ kind: 'conflict', local: pending.data, remote: cloud.snapshot })
+  expect((await reopened.read()).data).toEqual(pending.data)
+  expect(cloud.snapshot.data.records[0].amount).toBe(30)
+  const preserved = decodeBackup(encodeBackup((await reopened.read()).data, now))
+  const offlineRecovery = createStorage('cutover-json-' + crypto.randomUUID())
+  await offlineRecovery.update(restoreChange(preserved, await offlineRecovery.read()))
+  expect((await offlineRecovery.read()).records[0].amount).toBe(20)
+  expect(cloud.snapshot.data.records[0].amount).toBe(30)
 })
 
 test('送信確定前に保存された別の記録は次のrevisionへ送る', async () => {

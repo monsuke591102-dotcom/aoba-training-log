@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { CalendarRange } from 'lucide-react'
-import { encodeBackup } from './backup'
-import { downloadBackup } from './DataManagement'
+import { downloadBackup, encodeLocalBackup } from './DataManagement'
 import { localDate } from './dates'
 import { ExcelImport } from './ExcelImport'
+import { browserCategorySettings } from './menuCategories'
 import type { LocalDate, Menu, RoutineItem, TrainingData } from './model'
 import { errorMessage, type Commit } from './recordFeedback'
 import { NewPlanMenu, RoutineFields } from './RoutineFields'
@@ -23,6 +23,7 @@ export default function PlanManagement({ data, commit, back, read }: {
   const current = routineForDate(data, today)
   const [draft, setDraft] = useState<{ startsOn: string; items: RoutineDraftItem[]; sourceKey?: string }>()
   const [pendingMenus, setPendingMenus] = useState<Menu[]>([])
+  const [categorySettings] = useState(browserCategorySettings)
   const [importing, setImporting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -53,7 +54,7 @@ export default function PlanManagement({ data, commit, back, read }: {
   async function backup() {
     setError('')
     try {
-      downloadBackup(encodeBackup(await read()), 'aoba-training-log-backup-' + today + '.json')
+      downloadBackup(encodeLocalBackup(await read()), 'aoba-training-log-backup-' + today + '.json')
       setFeedback('ダウンロードを開始しました。ブラウザーの保存先を確認してください。')
     } catch {
       setFeedback('バックアップを書き出せませんでした。設定の「バックアップ・復元」も利用できます。')
@@ -133,7 +134,8 @@ export default function PlanManagement({ data, commit, back, read }: {
         </>}
         {draft.items.map((item, index) => {
           const fields = <>
-            <RoutineFields item={item} menus={menus} change={next => setDraft({ ...draft, items: draft.items.map((old, i) => i === index ? next : old) })} />
+            <RoutineFields item={item} menus={menus} settings={categorySettings}
+              change={next => setDraft({ ...draft, items: draft.items.map((old, i) => i === index ? next : old) })} />
             <button type="button" className="action edit-menu" onClick={() => setDraft({ ...draft, items: draft.items.filter(old => old.id !== item.id) })}>この種目を除外</button>
           </>
           return confirmingImport ? <details key={item.id} className="excel-preview-group import-draft-item">

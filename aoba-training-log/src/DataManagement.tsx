@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { ChevronLeft, Database } from 'lucide-react'
-import { BackupError, compareBackupCounts, decodeBackup, encodeBackup, replacesMatches, restoreChange, type Backup } from './backup'
+import { BackupError, compareBackupCounts, decodeBackup, encodeBackup, replacesMatches, restoreBackup, type Backup } from './backup'
 import { localDate } from './dates'
 import type { TrainingData } from './model'
+import { readCategorySettings, type CategorySettings } from './menuCategories'
+import { readMonthlyGoals, type MonthlyGoal } from './monthlyGoals'
 import { ScreenTitle } from './ScreenTitle'
 import type { Change } from './storage'
 
@@ -27,9 +29,15 @@ export function downloadBackup(contents: string, name: string) {
   }
 }
 
+export function encodeLocalBackup(data: TrainingData, now = new Date()) {
+  return encodeBackup(data, now, readMonthlyGoals(window.localStorage), readCategorySettings(window.localStorage))
+}
+
 export function DataManagement({ back, restore, read }: { back: () => void; restore: (change: Change) => Promise<void>; read: () => Promise<TrainingData> }) {
   const [busy, setBusy] = useState(false)
-  const [preview, setPreview] = useState<{ backup: Backup; current: TrainingData; name: string }>()
+  const [preview, setPreview] = useState<{
+    backup: Backup; current: TrainingData; monthlyGoals: MonthlyGoal[]; categories: CategorySettings; name: string
+  }>()
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [backupConfirmed, setBackupConfirmed] = useState(false)
@@ -62,7 +70,7 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
           }
           throw error
         }
-        const contents = encodeBackup(await read(), now)
+        const contents = encodeLocalBackup(await read(), now)
         const writable = await handle.createWritable()
         try {
           await writable.write(contents)
@@ -73,7 +81,7 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
         }
         setStatus('バックアップを保存しました。')
       } else {
-        downloadBackup(encodeBackup(await read(), now), name)
+        downloadBackup(encodeLocalBackup(await read(), now), name)
         setStatus('ダウンロードを開始しました。ブラウザのダウンロード先でファイルをご確認ください。')
       }
     } catch {
@@ -94,7 +102,8 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
     setBackupConfirmed(false)
     try {
       const backup = decodeBackup(await file.text())
-      setPreview({ backup, name: file.name, current: await read() })
+      setPreview({ backup, name: file.name, current: await read(), monthlyGoals: readMonthlyGoals(window.localStorage),
+        categories: readCategorySettings(window.localStorage) })
     } catch (error) {
       setError(error instanceof BackupError ? error.message : 'ファイルまたは現在のデータを読み込めませんでした。')
     } finally {
@@ -107,7 +116,7 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
     setBusy(true)
     setError('')
     try {
-      await restore(restoreChange(preview.backup, preview.current))
+      await restoreBackup(preview.backup, preview.current, preview.monthlyGoals, window.localStorage, restore, preview.categories)
       setPreview(undefined)
       setStatus('バックアップから復元しました。')
     } catch (error) {
@@ -138,11 +147,18 @@ export function DataManagement({ back, restore, read }: { back: () => void; rest
       <p className="hint">{preview.name}</p>
       <p className="hint">作成日時 <time dateTime={preview.backup.createdAt}>{new Date(preview.backup.createdAt).toLocaleString('ja-JP')}</time></p>
       <p className="restore-warning"><strong>現在のデータが置き換えられます。</strong> バックアップに含まれない現在のデータは、復元後に表示されなくなります。</p>
+      {preview.backup.monthlyGoals === undefined && <p className="hint">このファイルに月別目標の項目がないため、現在の月別目標は保持されます。</p>}
+      {preview.backup.menuCategories === undefined && <p className="hint">このファイルに分類設定がないため、現在の分類設定は保持されます。</p>}
       <table className="restore-counts">
         <thead><tr><th scope="col">データ</th><th scope="col">現在</th><th scope="col">復元後</th></tr></thead>
         <tbody>{compareBackupCounts(preview.current, preview.backup.data).map(({ key, label, current, restored }) =>
           <tr key={key}><th scope="row">{label}</th><td>{current}件</td><td>{restored}件</td></tr>,
-        )}</tbody>
+        )}
+          <tr><th scope="row">月別目標</th><td>{preview.monthlyGoals.length}件</td>
+            <td>{(preview.backup.monthlyGoals ?? preview.monthlyGoals).length}件</td></tr>
+          <tr><th scope="row">メニュー分類</th><td>{preview.categories.categories.length}件</td>
+            <td>{(preview.backup.menuCategories ?? preview.categories).categories.length}件</td></tr>
+        </tbody>
       </table>
       {error && <p className="error" role="alert">{error}</p>}
       {matchRisk && <div className="fields">

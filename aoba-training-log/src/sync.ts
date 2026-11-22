@@ -1,5 +1,6 @@
 import type { AccountState, AccountStorage, Flight } from './accountStorage'
 import { initialData } from './initialData'
+import { requireCloudCompatibleMatchData } from './matchDetails'
 import type { TrainingData } from './model'
 
 export interface RemoteSnapshot { revision: number; data: TrainingData }
@@ -43,6 +44,7 @@ function asSynced(state: AccountState, remote: RemoteSnapshot | null, data = rem
 export async function syncOnce(store: AccountStorage, api: SnapshotApi, readGuest: () => Promise<TrainingData>, signal?: AbortSignal): Promise<SyncResult> {
   const state = await store.read()
   signal?.throwIfAborted()
+  requireCloudCompatibleMatchData(state.data)
   const remote = await api.read()
   signal?.throwIfAborted()
   const revision = remote?.revision ?? null

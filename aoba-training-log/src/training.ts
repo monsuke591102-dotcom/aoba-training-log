@@ -41,10 +41,13 @@ export function currentGoal<K extends Goal['kind']>(goals: Goal[], kind: K, date
   )
 }
 
+export function trainingDaysInRange(data: Pick<TrainingData, 'records'>, start: LocalDate, end: LocalDate) {
+  return new Set(data.records.filter(record => record.date >= start && record.date <= end).map(record => record.date)).size
+}
+
 export function weeklyStats(data: TrainingData, today: Date) {
   const [start, end] = weekDates(today)
-  const records = data.records.filter(record => record.date >= start && record.date <= end)
-  const days = new Set(records.map(record => record.date)).size
+  const days = trainingDaysInRange(data, start, end)
   const goal = currentGoal(data.goals, 'weekly', localDate(today))?.days
   return { start, end, days, rate: goal ? Math.round(days / goal * 100) : null }
 }
@@ -85,6 +88,9 @@ export function saveRecord(data: TrainingData, draft: RecordDraft, id?: string, 
   }
   const previous = data.records.find(record => record.id === id)
   if (id && !previous) throw new InputError('この記録はすでに削除されています。')
+  if (previous?.kind === '試合' && draft.kind !== '試合' && data.matches?.some(match => match.recordId === previous.id)) {
+    throw new InputError('試合詳細に紐づく記録の種類は変更できません。')
+  }
   const menu = data.menus.find(item => item.id === draft.menuId && item.enabled)
   const snapshot = previous?.menuId === draft.menuId
     ? { menuName: previous.menuName, category: previous.category, unit: previous.unit }

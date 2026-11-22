@@ -1,14 +1,28 @@
 import 'fake-indexeddb/auto'
 import { expect, test, vi } from 'vitest'
 import { savePlan, saveReflection, saveSkippedMenu, setRest } from './activities'
-import { compareBackupCounts, decodeBackup, encodeBackup, restoreChange } from './backup'
+import { compareBackupCounts, decodeBackup, encodeBackup, restoreBackup, restoreChange } from './backup'
 import { initialData } from './initialData'
+import { defaultCategorySettings, readCategorySettings, saveCategory } from './menuCategories'
+import { readMonthlyGoals, saveMonthlyGoal, type MonthlyGoal } from './monthlyGoals'
 import { managementProgress } from './progress'
 import { createStorage } from './storage'
 import { saveGoals, saveMenu, saveRecord } from './training'
 
 const now = new Date(2026, 10, 18, 13)
 const date = '2026-11-18'
+
+function goalStorage() {
+  const values = new Map([['aoba-training-log:monthly-goal:2026-11', '12']])
+  return {
+    get length() { return values.size },
+    key: (index: number) => [...values.keys()][index] ?? null,
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value) },
+  }
+}
+
+const incomingGoals: MonthlyGoal[] = [{ start: '2028-02-01', days: 29 }, { start: '2028-03-01', days: 18 }]
 
 function fixture() {
   let data = initialData()
@@ -42,6 +56,92 @@ test('全データのJSON書き出しと復元で計算結果・見送り・履�
   const restored = await store.read()
   expect(restored).toEqual(source)
   expect(managementProgress(restored, now)).toEqual(managementProgress(source, now))
+})
+
+test('通常のバックアップは月別目標を別項目に保存し、旧ファイルでは既存目標を保持する', async () => {
+  const goals = goalStorage()
+  const original = readMonthlyGoals(goals)
+  const store = createStorage('restore-goals-' + crypto.randomUUID())
+  const restore = async (change: Parameters<typeof store.update>[0]) => { await store.update(change) }
+  const source = fixture()
+  const legacy = decodeBackup(encodeBackup(source, now))
+  await restoreBackup(legacy, await store.read(), original, goals, restore)
+  expect(readMonthlyGoals(goals)).toEqual(original)
+  const backup = decodeBackup(encodeBackup(source, now, incomingGoals))
+  expect(backup).toMatchObject({ backupVersion: 1, monthlyGoals: incomingGoals })
+  expect(backup.data).toEqual(source)
+  await restoreBackup(backup, await store.read(), original, goals, restore)
+  expect(readMonthlyGoals(goals)).toEqual(incomingGoals)
+  const noGoals = decodeBackup(encodeBackup(source, now, []))
+  await restoreBackup(noGoals, await store.read(), incomingGoals, goals, restore)
+  expect(readMonthlyGoals(goals)).toEqual([])
+})
+
+test('復元失敗と確認後の月別目標変更で月別目標を保持する', async () => {
+  const goals = goalStorage()
+  const original = readMonthlyGoals(goals)
+  const current = fixture()
+  const backup = decodeBackup(encodeBackup(initialData(), now, incomingGoals))
+  const restoreFailure = vi.fn(async () => { throw new Error('transaction aborted') })
+  await expect(restoreBackup(backup, current, original, goals, restoreFailure)).rejects.toThrow('transaction aborted')
+  expect(readMonthlyGoals(goals)).toEqual(original)
+  saveMonthlyGoal(goals, '2026-12-01', '15')
+  await expect(restoreBackup(backup, current, original, goals, restoreFailure)).rejects.toThrow('月別目標が変更')
+  expect(restoreFailure).toHaveBeenCalledTimes(1)
+  expect(readMonthlyGoals(goals)).toHaveLength(2)
+})
+
+test('練習データの保存が未確定ならブラウザー設定を書き換えない', async () => {
+  const storage = goalStorage()
+  const previous = readMonthlyGoals(storage)
+  const categories = defaultCategorySettings()
+  const backup = decodeBackup(encodeBackup(initialData(), now, incomingGoals, saveCategory(categories, '連携')))
+  let reject!: (error: Error) => void
+  const promise = new Promise<void>((_resolve, fail) => { reject = fail })
+  const restore = vi.fn(() => promise)
+  const result = restoreBackup(backup, fixture(), previous, storage, restore, categories)
+  expect(restore).toHaveBeenCalledOnce()
+  expect(readMonthlyGoals(storage)).toEqual(previous)
+  expect(readCategorySettings(storage)).toEqual(categories)
+  reject(new Error('interrupted before commit'))
+  await expect(result).rejects.toThrow('interrupted before commit')
+  expect(readMonthlyGoals(storage)).toEqual(previous)
+  expect(readCategorySettings(storage)).toEqual(categories)
+})
+
+test('確定後のブラウザー設定保存失敗は先に書いた設定を戻し、同じJSONで再試行できる', async () => {
+  const storage = goalStorage()
+  const previous = readMonthlyGoals(storage)
+  const categories = defaultCategorySettings()
+  const nextCategories = saveCategory(categories, '連携')
+  const snapshot = fixture()
+  const backup = decodeBackup(encodeBackup(snapshot, now, incomingGoals, nextCategories))
+  const store = createStorage('partial-restore-' + crypto.randomUUID())
+  const restore = async (change: Parameters<typeof store.update>[0]) => { await store.update(change) }
+  let fail = true
+  const browser = { ...storage, setItem(key: string, value: string) {
+    if (fail && key.endsWith(':menu-categories')) throw new DOMException('storage full', 'QuotaExceededError')
+    storage.setItem(key, value)
+  } }
+  await expect(restoreBackup(backup, await store.read(), previous, browser, restore, categories))
+    .rejects.toThrow('練習データは復元されましたが')
+  expect(await store.read()).toEqual(backup.data)
+  expect(readMonthlyGoals(browser)).toEqual(previous)
+  expect(readCategorySettings(browser)).toEqual(categories)
+  fail = false
+  await restoreBackup(backup, await store.read(), previous, browser, restore, categories)
+  expect(readMonthlyGoals(browser)).toEqual(incomingGoals)
+  expect(readCategorySettings(browser)).toEqual(nextCategories)
+})
+
+test('月別目標の不正な日付・日数・重複を拒否する', () => {
+  const backup = decodeBackup(encodeBackup(initialData(), now))
+  for (const monthlyGoals of [
+    [{ start: '2028-02-02', days: 2 }], [{ start: '2027-02-01', days: 29 }],
+    [{ start: '2028-02-01', days: 0 }], [incomingGoals[0], incomingGoals[0]], null,
+  ]) {
+    expect(() => decodeBackup(JSON.stringify({ ...backup, monthlyGoals }))).toThrow('月別目標')
+  }
 })
 
 test.each([

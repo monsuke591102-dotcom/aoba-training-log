@@ -2,11 +2,18 @@ import { isLocalDate, localDate, fromLocalDate } from './dates'
 import { skipReasons, type LocalDate, type Plan, type Reflection, type SkippedMenu, type TrainingData } from './model'
 import { InputError, trainingKinds, weekDates } from './training'
 
-export function savePlan(data: TrainingData, plan: Plan): TrainingData {
+function assertPlanUnchanged(current: Plan | undefined, expected: Plan | undefined) {
+  if (JSON.stringify(current) !== JSON.stringify(expected)) {
+    throw new InputError('予定が変更されました。閉じてから開き直してください。')
+  }
+}
+
+export function savePlan(data: TrainingData, plan: Plan, guard?: { expected?: Plan }): TrainingData {
   if (!isLocalDate(plan.date)) throw new InputError('予定の日付を選んでください。')
+  const previous = data.plans.find(item => item.date === plan.date)
+  if (guard) assertPlanUnchanged(previous, guard.expected)
   if (plan.kind !== '休養日') {
     if (!trainingKinds.includes(plan.kind)) throw new InputError('予定の種類を選んでください。')
-    const previous = data.plans.find(item => item.date === plan.date)
     const allowed = new Set(previous && previous.kind !== '休養日' ? previous.menuIds : [])
     for (const menu of data.menus) if (menu.enabled) allowed.add(menu.id)
     if (plan.menuIds.some(id => !allowed.has(id))) throw new InputError('予定に使えるメニューを選んでください。')
@@ -75,9 +82,7 @@ export function clearSkippedMenu(data: TrainingData, date: LocalDate, menuId: st
 
 export function savePlanKind(data: TrainingData, date: LocalDate, kind: Plan['kind'] | '', expected?: Plan): TrainingData {
   const current = data.plans.find(item => item.date === date)
-  if (JSON.stringify(current) !== JSON.stringify(expected)) {
-    throw new InputError('予定が変更されました。閉じてから開き直してください。')
-  }
+  assertPlanUnchanged(current, expected)
   if ((current?.kind ?? '') === kind) return data
   if (!kind) return deletePlan(data, date)
   if (kind === '休養日') return savePlan(data, { date, kind })

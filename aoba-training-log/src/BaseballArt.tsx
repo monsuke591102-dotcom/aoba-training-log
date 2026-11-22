@@ -22,14 +22,14 @@ export function Equipment({ category }: { category: Category }) {
   return <Icon size={22} aria-hidden="true" />
 }
 
-export function MenuCategoryLabel({ category }: { category: Category | '未分類' }) {
+export function MenuCategoryLabel({ category, name = category }: { category: Category | '未分類' | 'custom'; name?: string }) {
   return <span className="menu-category-label">
     {category !== '未分類' && <span className="menu-category-icon" aria-hidden="true">
       {category === '走塁' ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9h4m-6 4h4m1 5h15a2 2 0 0 0 2-2v-1l-7-2-4-6-4 3-2 5zm3 0v2m4-2v2m5-2v2m-6-10 2-1m0 4 2-1" />
-      </svg> : <Equipment category={category} />}
+      </svg> : <Equipment category={category === 'custom' ? 'その他' : category} />}
     </span>}
-    {category}
+    {name}
   </span>
 }
 

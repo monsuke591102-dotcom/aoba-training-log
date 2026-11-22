@@ -1,23 +1,23 @@
 import { useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { MenuCategoryLabel } from './BaseballArt'
-import { categories, units } from './initialData'
+import { units } from './initialData'
+import { defaultCategorySettings, groupedMenus, legacyCategory, type CategorySettings } from './menuCategories'
 import type { Menu, RoutineItem } from './model'
 import { changeRoutineMode, selectRoutineMenu, weekdays, type RoutineDraftItem } from './routines'
 
 const menuLabel = (menu: Menu) => `${menu.name}（${menu.unit}）${menu.enabled ? '' : ' · 非表示'}`
 
-export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem; menus: Menu[]; change: (item: RoutineDraftItem) => void }) {
+export function RoutineFields({ item, menus, change, settings = defaultCategorySettings() }: {
+  item: RoutineDraftItem; menus: Menu[]; change: (item: RoutineDraftItem) => void; settings?: CategorySettings
+}) {
   const menu = menus.find(menu => menu.id === item.menuId)
   const unit = item.recordUnit ?? menu?.unit
   const mode = item.mode ?? (menu ? 'quantity' : 'display')
   const needsMenu = (item.menuId !== undefined && (!menu || unit !== menu.unit)) ||
     (mode === 'quantity' && Boolean(item.pausedLink))
   const selected = needsMenu ? undefined : menu
-  const otherMenus = menus.filter(menu => !categories.includes(menu.category))
-  const groups: { label: Menu['category'] | '未分類'; menus: Menu[] }[] =
-    categories.map(category => ({ label: category, menus: menus.filter(menu => menu.category === category) }))
-  if (otherMenus.length) groups.push({ label: '未分類', menus: otherMenus })
+  const groups = groupedMenus(settings, menus)
   return <fieldset className="fields">
     <label>種目名
       <span className="routine-name-field">
@@ -31,11 +31,11 @@ export function RoutineFields({ item, menus, change }: { item: RoutineDraftItem;
       <p className="entry-note" role="status">選択中：{needsMenu ? '選び直してください' : selected ? menuLabel(selected) : 'なし'}</p>
       <button type="button" className="action" disabled={needsMenu} aria-pressed={!needsMenu && !selected}
         onClick={() => { if (selected) change(changeRoutineMode(item, undefined, menus)) }}>計画の表示のみ</button>
-      {groups.map(group => <details className="menu-group" key={group.label} data-menu-category={group.label}>
+      {groups.map(group => <details className="menu-group" key={group.id} data-menu-category={group.name}>
         <summary onClick={({ currentTarget: summary }) => {
           const focused = summary.ownerDocument.activeElement
           if (summary.closest('details')?.open && summary.parentElement?.contains(focused) && !summary.contains(focused)) summary.focus()
-        }}><MenuCategoryLabel category={group.label} /><span>{group.menus.length}種目{group.menus.some(menu => menu.id === selected?.id) && ' · 選択中'}</span>
+        }}><MenuCategoryLabel category={group.id ? legacyCategory(group.id) ?? 'custom' : '未分類'} name={group.name} /><span>{group.menus.length}種目{group.menus.some(menu => menu.id === selected?.id) && ' · 選択中'}</span>
           <ChevronDown size={18} aria-hidden="true" /></summary>
         {group.menus.length ? <ul className="routine-menu-options">
           {group.menus.map(menu => <li key={menu.id}>

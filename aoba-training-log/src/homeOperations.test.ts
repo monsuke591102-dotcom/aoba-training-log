@@ -67,3 +67,14 @@ test('ホームの予定編集とクイック入力が端末に保存され、�
   expect(result).toBe('synced')
   expect((await api.read())?.data).toEqual(saved.data)
 })
+test('カレンダーの編集中に追加・変更された予定を古いフォームから上書きしない', () => {
+  const date = '2026-11-18'
+  const original = { date, kind: '自主練', menuIds: ['swing'] } as const
+  const before = initialData()
+  const saved = savePlan(before, { ...original, menuIds: ['swing'] }, {})
+  const next = savePlanKind(saved, date, 'チーム練習', saved.plans[0])
+  const draft = { date, kind: '休養日' } as const
+  expect(() => savePlan(saved, draft, {})).toThrow('予定が変更されました')
+  expect(() => savePlan(next, draft, { expected: saved.plans[0] })).toThrow('予定が変更されました')
+  expect(savePlan(next, draft, { expected: next.plans[0] }).plans).toEqual([draft])
+})

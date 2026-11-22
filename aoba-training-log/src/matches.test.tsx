@@ -15,6 +15,15 @@ const now = new Date(2026, 10, 20, 12)
 const draft: MatchDraft = { date: '2026-11-20', kind: '試合', menuId: '', amount: '', duration: '', note: '', rating: '',
   good: ' 守備で声を出した ', improve: ' 次は早めに準備する ' }
 
+test('振り返りに紐づく試合を自主練へ変更して試合参照を切断できない', () => {
+  const linked = { ...draft, menuId: 'swing', amount: '1' }
+  const data = saveMatch(initialData(), linked, undefined, now)
+  const id = data.records[0].id
+  expect(data.matches?.[0].recordId).toBe(id)
+  expect(() => saveRecord(data, { ...linked, kind: '自主練' }, id, now)).toThrow('記録の種類は変更できません')
+  expect(saveRecord(data, { ...linked, amount: '2' }, id, now).matches).toEqual(data.matches)
+})
+
 beforeEach(() => {
   vi.stubGlobal('__LOCAL_MATCH_RECORDS__', true)
   vi.stubGlobal('__MATCH_TEST_BUILD__', null)
@@ -184,6 +193,7 @@ test('履歴は確定イベント、下書き、未記録と簡易集計を区�
     expect(withOpponent).toContain(`${label}の成績を見る`)
   }
   expect(withOpponent).toContain('match-whole-actions')
+  expect(withOpponent).toContain('試合全体の操作')
   expect(withOpponent).toContain('>試合を編集</button>')
   expect(withOpponent).toContain('>試合を削除</button>')
 })

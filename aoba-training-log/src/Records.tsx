@@ -65,10 +65,11 @@ function RecordForm({ data, record, match, date, kind, commit, onClose }: {
 
   return (
     <form className="editor" onSubmit={submit} noValidate>
-      <h2>{record || match ? '記録を編集' : '新しい練習記録'}</h2>
+      <h2>{record || match ? (matchEnabled ? '試合を編集' : '記録を編集') : '新しい練習記録'}</h2>
       <fieldset disabled={busy} className="fields">
         <label>練習日<input type="date" required max={today} value={draft.date} onChange={event => update('date', event.target.value)} /></label>
-        <label>練習の種類<select disabled={Boolean(standalone)} value={draft.kind} onChange={event => update('kind', event.target.value as TrainingKind)}>
+        <label>練習の種類<select disabled={Boolean(standalone || (match && record?.kind === '試合'))} value={draft.kind}
+          onChange={event => update('kind', event.target.value as TrainingKind)}>
           {trainingKinds.map(kind => <option key={kind}>{kind}</option>)}
         </select></label>
         {!standalone && <label>練習メニュー<select required={!menuOptional} value={draft.menuId} onChange={event => update('menuId', event.target.value)}>
@@ -89,8 +90,10 @@ function RecordForm({ data, record, match, date, kind, commit, onClose }: {
         </>}
         {matchEnabled && <>
           <label>対戦相手（任意）<input value={draft.opponent ?? ''} onChange={event => update('opponent', event.target.value)} /></label>
-          <label>良かったこと（任意）<textarea rows={2} value={draft.good} onChange={event => update('good', event.target.value)} /></label>
-          <label>改善したいこと（任意）<textarea rows={2} value={draft.improve} onChange={event => update('improve', event.target.value)} /></label>
+          <fieldset className="fields"><legend>試合の振り返り</legend>
+            <label>良かったこと（任意）<textarea rows={2} value={draft.good} onChange={event => update('good', event.target.value)} /></label>
+            <label>改善したいこと（任意）<textarea rows={2} value={draft.improve} onChange={event => update('improve', event.target.value)} /></label>
+          </fieldset>
         </>}
         <div className="form-actions"><button className="action filled" type="submit">記録を保存</button><button className="action" type="button" onClick={onClose}>キャンセル</button></div>
       </fieldset>
@@ -257,7 +260,8 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
                     </div>
                     {error && <p className="error" role="alert">{error}</p>}
                   </div>
-                : (record || (editMatches && canRecord)) && <div className={isMatch ? 'form-actions match-whole-actions' : 'form-actions'}>
+                : (record || (editMatches && canRecord)) && <div className={isMatch ? 'form-actions match-whole-actions' : 'form-actions'}
+                    role={isMatch ? 'group' : undefined} aria-label={isMatch ? `${description} 試合全体の操作` : undefined}>
                     <button type="button" className="action" onClick={() => { setEditing(id); window.scrollTo(0, 0) }}>{isMatch ? '試合を編集' : '編集'}</button>
                     <button type="button" className="action" onClick={() => { setError(''); setDeleting(id) }}>{isMatch ? '試合を削除' : '削除'}</button>
                   </div>}

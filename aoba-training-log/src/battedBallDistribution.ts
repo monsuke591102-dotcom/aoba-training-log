@@ -1,10 +1,37 @@
-import type { PlateAppearance } from './matchDetails'
+import type { Pitch, PlateAppearance } from './matchDetails'
 import type { BattingGame } from './recordHistory'
 
 const battedBallResults = new Set<PlateAppearance['result']>([
   'single', 'double', 'triple', 'homeRun', 'groundOut', 'flyOut', 'lineOut', 'popOut',
   'doublePlay', 'triplePlay', 'reachedOnError', 'fieldersChoice', 'sacrificeBunt', 'sacrificeFly',
 ])
+
+function isCompletedBattedBall(row: PlateAppearance): row is PlateAppearance & { result: NonNullable<PlateAppearance['result']> } {
+  if (row.status !== 'complete' || !row.result) return false
+  if (battedBallResults.has(row.result)) return true
+  if (row.result !== 'otherOut') return false
+  if (row.battedBall) return true
+  const finalPitch = row.pitches?.reduce<Pitch | undefined>((last, pitch) =>
+    !last || pitch.order >= last.order ? pitch : last, undefined)
+  // Legacy inPlay indicates contact in play without distinguishing hit from out.
+  return finalPitch?.result === 'inPlay' || finalPitch?.result === 'inPlayNonHit'
+}
+
+export function gameBattedBallLocations(game: BattingGame, gameNumber = 1) {
+  let missingPositions = 0
+  const hits = [...(game.details?.plateAppearances ?? [])].sort((a, b) => a.order - b.order).flatMap(row => {
+    if (!isCompletedBattedBall(row)) return []
+    if (!row.fieldPoint) {
+      missingPositions++
+      return []
+    }
+    return [{
+      id: JSON.stringify([game.id, row.id]), order: row.order, point: row.fieldPoint,
+      result: row.result, date: game.date, gameNumber, opponent: game.details?.opponent,
+    }]
+  })
+  return { hits, missingPositions }
+}
 
 export function battedBallDistribution(games: readonly BattingGame[]) {
   let missingPositions = 0
@@ -17,18 +44,9 @@ export function battedBallDistribution(games: readonly BattingGame[]) {
       unavailableGames++
       return []
     }
-    return [...game.details.plateAppearances].sort((a, b) => a.order - b.order).flatMap(row => {
-      if (row.status !== 'complete' || !row.result ||
-        !(battedBallResults.has(row.result) || (row.result === 'otherOut' && row.battedBall))) return []
-      if (!row.fieldPoint) {
-        missingPositions++
-        return []
-      }
-      return [{
-        id: JSON.stringify([game.id, row.id]), order: row.order, point: row.fieldPoint,
-        result: row.result, date: game.date, gameNumber, opponent: game.details?.opponent,
-      }]
-    })
+    const locations = gameBattedBallLocations(game, gameNumber)
+    missingPositions += locations.missingPositions
+    return locations.hits
   })
   return { hits, missingPositions, unavailableGames }
 }

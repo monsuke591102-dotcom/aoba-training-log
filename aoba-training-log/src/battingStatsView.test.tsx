@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 import { BattingStatsView, HomeBattingSummary } from './BattingStatsView'
 import { battingGames, recordHistory, type BattingGame } from './recordHistory'
-import { emptyMatchDetails } from './matchDetails'
+import { emptyMatchDetails, initialPitchTypes, type Pitch } from './matchDetails'
 import { initialData } from './initialData'
 import type { TrainingRecord } from './model'
 import { battedBallDistribution } from './battedBallDistribution'
@@ -57,21 +57,56 @@ test('通算は既存エンジンで再計算し、対象試合数と日付範�
   expect(html).toContain('位置あり 2件 · 位置未記録 1件')
 })
 
-test('通算分布は確定した打球だけを対象とし、その他のアウトには打球種類を要求する', () => {
+test('試合別と通算は同じ確定打球を表示し、非打球結果に残った座標を除外する', () => {
   const results = ['single', 'double', 'triple', 'homeRun', 'groundOut', 'flyOut', 'lineOut', 'popOut',
     'reachedOnError', 'doublePlay', 'triplePlay', 'sacrificeBunt', 'sacrificeFly', 'fieldersChoice',
     'walk', 'hitByPitch', 'strikeoutSwinging', 'strikeoutLooking', 'droppedThirdStrike', 'interference', 'otherOut'] as const
   const details = emptyMatchDetails()
-  details.plateAppearances = results.map((result, order) => ({ id: String(order), order, result, status: 'complete', fieldPoint: point }))
+  details.plateAppearances = results.map((result, index) => ({
+    id: String(index + 1), order: index + 1, result, status: 'complete', fieldPoint: point,
+  }))
   details.plateAppearances.push(
     { id: 'known', order: 22, result: 'otherOut', battedBall: 'grounder', status: 'complete', fieldPoint: point },
     { id: 'no-point', order: 23, result: 'otherOut', battedBall: 'fly', status: 'complete' },
     { id: 'unknown', order: 24, result: 'otherOut', status: 'complete' },
     { id: 'draft', order: 25, result: 'single', status: 'draft', fieldPoint: point },
   )
-  const distribution = battedBallDistribution([{ ...game, details }])
+  const selected = { ...game, details }
+  const distribution = battedBallDistribution([selected])
   expect(distribution.hits.map(hit => hit.result)).toEqual([...results.slice(0, 14), 'otherOut'])
   expect(distribution.missingPositions).toBe(1)
+  for (const html of [render([selected], selected), render([selected])]) {
+    expect(html).toContain('>+15</text>')
+    expect(html).toContain('第9打席 · 失策出塁')
+    expect(html).not.toMatch(/第(?:15|16|17|18|19|20|21|23|24|25)打席 ·/)
+  }
+})
+
+test('その他のアウトでは投球順が最大の旧・新打球結果だけを根拠にする', () => {
+  const pitch = (order: number, result: Pitch['result']): Pitch => ({
+    id: String(order), order, result, type: initialPitchTypes[0], location: { zone: 'outside', side: 'low' },
+  })
+  const details = emptyMatchDetails()
+  details.plateAppearances = [
+    { id: 'new', order: 1, status: 'complete', result: 'otherOut', fieldPoint: point,
+      pitches: [pitch(2, 'inPlayNonHit'), pitch(1, 'ball')] },
+    { id: 'legacy', order: 2, status: 'complete', result: 'otherOut', fieldPoint: point,
+      pitches: [pitch(1, 'inPlay')] },
+    { id: 'unlocated', order: 3, status: 'complete', result: 'otherOut', pitches: [pitch(1, 'inPlayNonHit')] },
+    { id: 'earlier', order: 4, status: 'complete', result: 'otherOut', fieldPoint: point,
+      pitches: [pitch(2, 'ball'), pitch(1, 'inPlay')] },
+    { id: 'walk', order: 5, status: 'complete', result: 'walk', fieldPoint: point,
+      pitches: [pitch(1, 'inPlay')] },
+  ]
+  const selected = { ...game, details }
+  const distribution = battedBallDistribution([selected])
+  expect(distribution.hits.map(hit => hit.order)).toEqual([1, 2])
+  expect(distribution.missingPositions).toBe(1)
+  for (const html of [render([selected], selected), render([selected])]) {
+    expect(html).toContain('第1打席 · その他のアウト')
+    expect(html).toContain('第2打席 · その他のアウト')
+    expect(html).not.toMatch(/第[345]打席 ·/)
+  }
 })
 
 test('同日の別試合と同じ打席IDを区別し、座標をまとめて編集・削除を反映する', () => {
@@ -103,6 +138,9 @@ test('簡易集計に詳細打席が残っていても通算分布から除外�
   expect(html).toContain('対象 3試合 · 位置あり 2件 · 位置未記録 0件')
   expect(html).toContain('詳細記録のない 2試合は、打球数・位置未記録数を算出できません')
   expect(html).not.toContain('同日第2試合 · 第1打席')
+  const singleGameHtml = render([simple], simple)
+  expect(singleGameHtml).toContain('この球場図に表示する詳細打球位置は、通算打球分布の集計対象外です。')
+  expect(singleGameHtml).toContain('>+2</text>')
   expect(render([])).toContain('位置を記録した確定打席はありません。')
 })
 

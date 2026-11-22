@@ -4,7 +4,7 @@ import { BallFieldDrawing } from './BattingDiagrams'
 import { resultLabels } from './BattingEditor'
 import { aggregateBattingStats, calculateMatchBattingStats, type BattingStats } from './battingStats'
 import type { BattingGame } from './recordHistory'
-import { battedBallDistribution } from './battedBallDistribution'
+import { battedBallDistribution, gameBattedBallLocations } from './battedBallDistribution'
 
 const rates = [['avg', '打率', 'AVG'], ['obp', '出塁率', 'OBP'], ['slg', '長打率', 'SLG'], ['ops', 'OPS', '']] as const
 const counts = [
@@ -131,12 +131,8 @@ export function BattingStatsView({ games, game, onClose, backLabel = '練習履�
     <StatsCard stats={stats} />
     {game ? <section className="batting-stat-field">
       <h3>記録した打球位置</h3>
-      {game.details?.source.batting === 'summary' && <p className="hint">球場図には確定した詳細記録の位置を表示します。</p>}
-      <HitLocations key={game.id} hits={[...(game.details?.plateAppearances ?? [])]
-        .sort((a, b) => a.order - b.order)
-        .flatMap(row => row.status === 'complete' && row.fieldPoint && row.result
-          ? [{ id: row.id, order: row.order, point: row.fieldPoint, result: row.result, date: game.date,
-            gameNumber: 1, opponent: game.details?.opponent }] : [])} />
+      {game.details?.source.batting === 'summary' && <p className="hint">この試合の打撃成績には簡易集計を使用しています。この球場図に表示する詳細打球位置は、通算打球分布の集計対象外です。</p>}
+      <HitLocations key={game.id} hits={gameBattedBallLocations(game).hits} />
     </section> : <CareerHitLocations games={games} />}
   </section>
 }

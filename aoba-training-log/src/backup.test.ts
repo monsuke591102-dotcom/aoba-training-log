@@ -147,7 +147,7 @@ test('月別目標の不正な日付・日数・重複を拒否する', () => {
 test.each([
   ['破損JSON', '{broken', 'JSONを読み取れません'],
   ['別アプリ', JSON.stringify({ appId: 'other' }), 'AOBA TRAINING LOG'],
-  ['未対応のバックアップ版', JSON.stringify({ appId: 'aoba-training-log', backupVersion: 5, dataVersion: 3 }), '対応していません'],
+  ['未対応のバックアップ版', JSON.stringify({ appId: 'aoba-training-log', backupVersion: 6, dataVersion: 3 }), '対応していません'],
   ['未対応のデータ版', JSON.stringify({ appId: 'aoba-training-log', backupVersion: 1, dataVersion: 999 }), '対応していません'],
 ])('%sを拒否する', (_label, content, message) => {
   expect(() => decodeBackup(content)).toThrow(message)

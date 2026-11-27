@@ -12,11 +12,12 @@ const backupVersion = 1
 const detailedBackupVersion = 2
 const pitchBackupVersion = 3
 const fieldingBackupVersion = 4
+const strikeoutBackupVersion = 5
 const dataVersion: TrainingData['schemaVersion'] = 3
 
 export interface Backup {
   appId: typeof appId
-  backupVersion: typeof backupVersion | typeof detailedBackupVersion | typeof pitchBackupVersion | typeof fieldingBackupVersion
+  backupVersion: typeof backupVersion | typeof detailedBackupVersion | typeof pitchBackupVersion | typeof fieldingBackupVersion | typeof strikeoutBackupVersion
   createdAt: string
   dataVersion: typeof dataVersion
   data: TrainingData
@@ -143,6 +144,7 @@ export function validateData(data: unknown): asserts data is TrainingData {
 }
 
 function backupVersionFor(data: TrainingData): Backup['backupVersion'] {
+  if (data.matches?.some(match => match.details?.version === 4)) return strikeoutBackupVersion
   if (data.matches?.some(match => match.details?.version === 3)) return fieldingBackupVersion
   if (data.matches?.some(match => match.details?.version === 2)) return pitchBackupVersion
   return hasMatchDetails(data) ? detailedBackupVersion : backupVersion
@@ -170,7 +172,8 @@ export function decodeBackup(text: string): Backup {
   }
   if (!object(value) || value.appId !== appId) throw new BackupError('AOBA TRAINING LOGのバックアップを選んでください。')
   if ((value.backupVersion !== backupVersion && value.backupVersion !== detailedBackupVersion &&
-    value.backupVersion !== pitchBackupVersion && value.backupVersion !== fieldingBackupVersion) || value.dataVersion !== dataVersion) {
+    value.backupVersion !== pitchBackupVersion && value.backupVersion !== fieldingBackupVersion &&
+    value.backupVersion !== strikeoutBackupVersion) || value.dataVersion !== dataVersion) {
     throw new BackupError('このバックアップのバージョンには対応していません。')
   }
   if (!string(value.createdAt) || !timestamp(value.createdAt)) throw new BackupError('バックアップの作成日時が不正です。')
@@ -209,18 +212,49 @@ export function replacesMatches(current: TrainingData, replacement?: TrainingDat
   }) ?? false
 }
 
-export function restoreChange(backup: Backup, expected: TrainingData) {
+export function backupRestoreData(backup: Backup, current: TrainingData, preserveLocalDetails = false): TrainingData {
+  if (!preserveLocalDetails || backup.backupVersion !== backupVersion) return backup.data
+  const matches = [...(backup.data.matches ?? [])]
+  for (const row of current.matches ?? []) {
+    if (!row.details && row.recordId) continue
+    const index = matches.findIndex(incoming => row.recordId ? incoming.recordId === row.recordId : incoming.id === row.id)
+    if (index < 0) matches.push(row)
+    else if (row.details) matches[index] = { ...matches[index], details: row.details }
+  }
+  return matches.length ? { ...backup.data, matches } : backup.data
+}
+
+export function replacedStrikeoutDetails(current: TrainingData, replacement?: TrainingData) {
+  const incoming = new Map(replacement?.matches?.map(match => [match.id, match]))
+  return (current.matches ?? []).flatMap(match => {
+    const plates = new Map(incoming.get(match.id)?.details?.plateAppearances.map(plate => [plate.id, plate]))
+    return (match.details?.plateAppearances ?? []).flatMap(plate => {
+      const kind = plate.droppedThirdStrikeKind
+      if (!kind || plates.get(plate.id)?.droppedThirdStrikeKind === kind) return []
+      return [{ matchId: match.id, plateId: plate.id, date: match.date, opponent: match.details?.opponent, order: plate.order, kind }]
+    })
+  })
+}
+
+export function restoreChange(backup: Backup, expected: TrainingData, preserveLocalDetails = false, strikeoutReplacementConfirmed = false) {
   const snapshot = JSON.stringify(expected)
   return (current: TrainingData) => {
     if (JSON.stringify(current) !== snapshot) {
       throw new BackupError('確認中に現在のデータが変更されました。ファイルを選び直してください。')
     }
+    if (backup.backupVersion === strikeoutBackupVersion && !preserveLocalDetails) {
+      throw new BackupError('この形式の復元には試合詳細の端末内専用ストレージに対応した環境が必要です。')
+    }
+    if (preserveLocalDetails && backup.backupVersion === backupVersion) return backupRestoreData(backup, current, true)
     if (hasMatchDetails(current) && backup.backupVersion === backupVersion) {
       throw new BackupError('試合詳細のない旧形式で上書きできません。試合詳細を含むバックアップを選んでください。')
     }
     const currentVersion = backupVersionFor(current)
     if (backup.backupVersion < currentVersion) {
       throw new BackupError('現在の試合詳細より古い形式で上書きできません。現在と同じか新しい形式のバックアップを選んでください。')
+    }
+    if (!strikeoutReplacementConfirmed && replacedStrikeoutDetails(current, backup.data).length) {
+      throw new BackupError('振り逃げの内訳が置き換わります。現在のバックアップを保存してから置換を確認してください。')
     }
     return backup.data
   }
@@ -232,8 +266,9 @@ function sameMonthlyGoals(a: readonly MonthlyGoal[], b: readonly MonthlyGoal[]) 
 }
 
 export async function restoreBackup(backup: Backup, expected: TrainingData, expectedGoals: MonthlyGoal[],
-  storage: GoalStorage, restore: (change: Change) => Promise<void>, expectedCategories?: CategorySettings) {
-  const change = restoreChange(backup, expected)
+  storage: GoalStorage, restore: (change: Change) => Promise<void>, expectedCategories?: CategorySettings, preserveLocalDetails = false,
+  strikeoutReplacementConfirmed = false) {
+  const change = restoreChange(backup, expected, preserveLocalDetails, strikeoutReplacementConfirmed)
   if (backup.monthlyGoals === undefined && backup.menuCategories === undefined) return restore(change)
 
   // Reject incompatible match detail versions before changing separate browser storage.

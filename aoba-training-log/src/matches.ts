@@ -6,8 +6,9 @@ import { deleteRecord, InputError, saveRecord, type RecordDraft } from './traini
 export function canEditMatches() {
   return __MATCH_TEST_BUILD__
     ? typeof window !== 'undefined' && window.isSecureContext && window.location.origin === __MATCH_TEST_BUILD__.origin
-    : __LOCAL_MATCH_RECORDS__ && typeof window !== 'undefined' &&
-      ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+    : typeof window !== 'undefined' && ((__LOCAL_MATCH_RECORDS__ &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)) ||
+      (typeof __PAGES_MATCH_RECORDS__ !== 'undefined' && __PAGES_MATCH_RECORDS__ && window.isSecureContext && Boolean(navigator.locks)))
 }
 
 export type MatchDraft = RecordDraft & { good: string; improve: string; opponent?: string }
@@ -76,6 +77,7 @@ export function updateMatchDetails(data: TrainingData, target: MatchTarget,
   let version = edited.version
   if (version < 3 && edited.fielding.some(row => row.opportunity !== undefined)) version = 3
   if (version === 1 && edited.plateAppearances.some(needsPitchDetailsV2)) version = 2
+  if (edited.plateAppearances.some(row => row.droppedThirdStrikeKind !== undefined)) version = 4
   const details = version === edited.version ? edited : { ...edited, version }
   if (!isMatchDetails(details)) throw new InputError('試合詳細に不正な項目または重複があります。')
   const timestamp = now.toISOString()

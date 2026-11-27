@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, expect, test, vi } from 'vitest'
 import { decodeBackup, encodeBackup, restoreChange } from './backup'
-import { FieldingEditor } from './FieldingEditor'
+import { FieldingEditor, suggestFieldingCredit } from './FieldingEditor'
 import { initialData } from './initialData'
 import { emptyMatchDetails, initialPitchTypes, isMatchDetails, type FieldingPlay, type MatchDetails } from './matchDetails'
 import { saveMatchDetailRow, updateMatchDetails } from './matches'
@@ -35,11 +35,23 @@ test('守備位置履歴とプレー一覧に公式記録の内訳と下書き�
   expect(html).toContain('4イニング目')
   expect(html).toContain('イニング未記録')
   expect(html).toContain('旧記録の守備位置履歴')
+  expect(html.indexOf('4イニング目')).toBeLessThan(html.indexOf('イニング未記録'))
+  expect(html).toContain('プレーとの前後関係は不明')
   expect(html).toContain('前で捕球')
   expect(html).toContain('次は早く構える')
   expect(html).toContain('公式記録なし')
   expect(html).toContain('PO（刺殺）・A（補殺）・E（失策）')
   expect(html).toContain('下書き')
+})
+
+test('公式記録は捕球によるアウトだけを提案し、失策や送球関与を推定しない', () => {
+  const opportunity = { catchResult: 'success', outcome: 'out' } as const
+  const fly = { ...play, playType: 'fly', opportunity } as const
+  expect(suggestFieldingCredit(fly)).toBe('putout')
+  expect(fly.credits).toEqual([])
+  expect(suggestFieldingCredit({ ...fly, playType: 'grounder' })).toBeUndefined()
+  expect(suggestFieldingCredit({ ...fly, opportunity: { ...opportunity, throwResult: 'error' } })).toBeUndefined()
+  expect(suggestFieldingCredit({ ...fly, opportunity: { ...opportunity, catchResult: 'failure' } })).toBeUndefined()
 })
 
 test('守備の下書き・確定・削除は別プレー、位置履歴、打撃・走塁、簡易集計元を保持する', async () => {

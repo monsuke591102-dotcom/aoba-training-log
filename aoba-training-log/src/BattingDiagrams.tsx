@@ -127,7 +127,7 @@ function PitchBadge({ pitch, tone }: { pitch: DiagramPitch; tone: MarkerTone }) 
 
 export function StrikeZone({ location, pitches, plateResult, onSelect }: {
   location?: PitchLocation; pitches: DiagramPitch[]; plateResult?: PlateAppearance['result']
-  onSelect: (location: PitchLocation) => void
+  onSelect?: (location: PitchLocation) => void
 }) {
   const selected = location && pitchPoint(location)
   const markers = pitchMarkers(pitches)
@@ -141,7 +141,7 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
   const toneFor = (pitch: DiagramPitch) => markerTone(pitch, pitch === terminalPitch ? terminalTone : undefined)
 
   function select(point: FieldPoint) {
-    onSelect({ zone: 'point', ...point })
+    onSelect?.({ zone: 'point', ...point })
   }
 
   function tap(event: MouseEvent<HTMLButtonElement>) {
@@ -167,10 +167,7 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
     select({ x: clamp(x + dx), y: clamp(y + dy) })
   }
 
-  return <figure className="batting-diagram">
-    <figcaption>投球コース · 捕手視点</figcaption>
-    <button type="button" className="strike-grid" aria-label="ストライクゾーンとゾーン外で投球位置を指定"
-      aria-describedby="strike-grid-help" onClick={tap} onKeyDown={move}>
+  const diagram = <>
       <svg className="strike-guides" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <rect x={zoneMin * 100} y={zoneMin * 100} width={(zoneMax - zoneMin) * 100} height={(zoneMax - zoneMin) * 100} />
         <path d="M40 20v60 M60 20v60 M20 40h60 M20 60h60" />
@@ -187,12 +184,18 @@ export function StrikeZone({ location, pitches, plateResult, onSelect }: {
       </span>)}
       {selected && <span className="zone-selection" aria-hidden="true"
         style={{ left: selected.x * 100 + '%', top: selected.y * 100 + '%' }} />}
-    </button>
+  </>
+  return <figure className="batting-diagram">
+    <figcaption>投球コース · 捕手視点</figcaption>
+    {onSelect
+      ? <button type="button" className="strike-grid" aria-label="ストライクゾーンとゾーン外で投球位置を指定"
+          aria-describedby="strike-grid-help" onClick={tap} onKeyDown={move}>{diagram}</button>
+      : <div className="strike-grid">{diagram}</div>}
     {overflow.length > 0 && <div className="zone-marker-overflow" aria-label="図に収まらない投球">
       {overflow.map(({ pitch }) => <PitchBadge key={pitch.id} pitch={pitch} tone={toneFor(pitch)} />)}
     </div>}
     <p className="hint">黄：ストライク・ファウル · 緑：ボール · 赤：打球アウト · 青：ヒット · 灰：その他・判定不可</p>
-    <p className="hint" id="strike-grid-help">枠の内外をタップできます。キーボードでは矢印で移動、Shift＋矢印で微調整できます。</p>
+    {onSelect && <p className="hint" id="strike-grid-help">枠の内外をタップできます。キーボードでは矢印で移動、Shift＋矢印で微調整できます。</p>}
   </figure>
 }
 
@@ -209,14 +212,16 @@ export function BallFieldDrawing({ children }: PropsWithChildren) {
   </svg>
 }
 
-export function BallField({ point, onSelect }: { point?: FieldPoint; onSelect: (point?: FieldPoint) => void }) {
+export function BallField({ point, onSelect, emptyLabel = '打球位置は未入力' }: {
+  point?: FieldPoint; onSelect?: (point?: FieldPoint) => void; emptyLabel?: string
+}) {
   function tap(event: MouseEvent<HTMLButtonElement>) {
     if (event.detail === 0) {
-      if (!point) onSelect({ x: .5, y: .5 })
+      if (!point) onSelect?.({ x: .5, y: .5 })
       return
     }
     const box = event.currentTarget.getBoundingClientRect()
-    if (box.width && box.height) onSelect(normalizeFieldPoint(event.clientX - box.left, event.clientY - box.top, box.width, box.height))
+    if (box.width && box.height) onSelect?.(normalizeFieldPoint(event.clientX - box.left, event.clientY - box.top, box.width, box.height))
   }
   function move(event: KeyboardEvent<HTMLButtonElement>) {
     const arrows = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
@@ -224,24 +229,27 @@ export function BallField({ point, onSelect }: { point?: FieldPoint; onSelect: (
     event.preventDefault()
     const step = event.shiftKey ? .01 : .05
     const { x, y } = point ?? { x: .5, y: .5 }
-    onSelect({
+    onSelect?.({
       x: clamp(x + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0)),
       y: clamp(y + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0)),
     })
   }
-  return <figure className="batting-diagram">
-    <figcaption>打球位置 · 上から見た球場</figcaption>
-    <button type="button" className="ball-field" aria-label="球場図で打球位置を指定" aria-describedby="ball-field-help"
-      onClick={tap} onKeyDown={move}>
+  const diagram = (
       <BallFieldDrawing>
         {point && <g>
           <line x1="150" y1="237" x2={point.x * 300} y2={point.y * 260} stroke="#ffdc83" strokeWidth="2.5" strokeDasharray="5 4" />
           <circle cx={point.x * 300} cy={point.y * 260} r="7" fill="#ffdc83" stroke="#15243d" strokeWidth="2.5" />
         </g>}
       </BallFieldDrawing>
-    </button>
-    <p className="hint" id="ball-field-help">図をタップ。キーボードでは矢印で移動、Shift＋矢印で微調整できます。位置は目安です。</p>
-    <p className="hint" role="status">{point ? `選択位置：左から ${Math.round(point.x * 100)}%、上から ${Math.round(point.y * 100)}%` : '打球位置は未入力'}</p>
-    {point && <button type="button" className="action" onClick={() => onSelect()}>打球位置を解除</button>}
+  )
+  return <figure className="batting-diagram">
+    <figcaption>打球位置 · 上から見た球場</figcaption>
+    {onSelect
+      ? <button type="button" className="ball-field" aria-label="球場図で打球位置を指定" aria-describedby="ball-field-help"
+          onClick={tap} onKeyDown={move}>{diagram}</button>
+      : <div className="ball-field">{diagram}</div>}
+    {onSelect && <p className="hint" id="ball-field-help">図をタップ。キーボードでは矢印で移動、Shift＋矢印で微調整できます。位置は目安です。</p>}
+    <p className="hint" role="status">{point ? `${onSelect ? '選択位置' : '記録位置'}：左から ${Math.round(point.x * 100)}%、上から ${Math.round(point.y * 100)}%` : emptyLabel}</p>
+    {point && onSelect && <button type="button" className="action" onClick={() => onSelect()}>打球位置を解除</button>}
   </figure>
 }

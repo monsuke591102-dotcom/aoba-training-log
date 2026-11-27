@@ -8,6 +8,19 @@ function match(...results: PlateAppearance['result'][]) {
   })) } }
 }
 
+test('振り逃げの確定内訳は三振内訳だけを変更し、未分類と下書きを維持する', () => {
+  const input = match('single', 'droppedThirdStrike', 'droppedThirdStrike', 'droppedThirdStrike')
+  const expected = calculateMatchBattingStats(input)
+  const details: MatchDetails = { ...input.details, version: 4,
+    plateAppearances: input.details.plateAppearances.map((plate, index) => index === 1
+      ? { ...plate, droppedThirdStrikeKind: 'swinging' }
+      : index === 2 ? { ...plate, droppedThirdStrikeKind: 'looking' } : plate),
+  }
+  expect(calculateMatchBattingStats({ details })).toEqual({
+    ...expected, swingingStrikeouts: 1, lookingStrikeouts: 1, unclassifiedStrikeouts: 1,
+  })
+})
+
 test('4種類の安打を合計し、安打種別から塁打を計算する', () => {
   expect(calculateMatchBattingStats(match('single', 'double', 'triple', 'homeRun'))).toMatchObject({
     pa: 4, ab: 4, h: 4, singles: 1, doubles: 1, triples: 1, homeRuns: 1, tb: 10,

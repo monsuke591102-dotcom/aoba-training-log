@@ -16,10 +16,12 @@ import type { LocalDate, TrainingData, TrainingKind } from './model'
 import { Records, type Commit } from './Records'
 import { battingGames, recordHistory } from './recordHistory'
 import { Reflections } from './Reflections'
+import { RestoreRecovery } from './RestoreRecovery'
 import { Settings } from './Settings'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './cloud'
 import type { Change } from './storage'
+import type { LocalRestoreSettings } from './localMatchStorage'
 import { useTrainingStorage } from './useTrainingStorage'
 
 const Growth = lazy(() => import('./Growth'))
@@ -103,7 +105,7 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
     if (notice) setMilestone({ ...notice, id: ++milestoneId.current })
   }
 
-  async function restore(change: Change) {
+  async function restore(change: Change, settings?: LocalRestoreSettings) {
     await storage.update(current => {
       const restored = change(current)
       const existing = new Set(current.deletedMenus?.map(item => item.id))
@@ -111,7 +113,7 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
         throw new BackupError('このバックアップには、復元先にない削除済みメニューがあります。完全削除に対応した検証環境で確認してください。')
       }
       return restored
-    })
+    }, settings)
     pendingGauge.current = false
     setMilestone(undefined)
   }
@@ -142,7 +144,15 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
     <header className="masthead"><div className="shell"><span className="brand-mark"><Baseball size={27} /></span>AOBA TRAINING LOG</div></header>
     <main className="shell content" data-screen={page}>
       {__MATCH_TEST_BUILD__ && <p className="card entry-note"><strong>試合記録の検証環境</strong> · {__MATCH_TEST_BUILD__.build}<br />端末内のみ保存 · テストデータ専用</p>}
-      {data ? <>
+      {storage.matchUpgradeBlocked ? <p role="status">ほかのタブが試合データを使用しています。開いている旧タブやホーム画面のアプリを閉じると、更新を続けます。</p>
+        : storage.matchVersionError ? <><p className="error" role="alert">{storage.matchVersionError}</p>
+          <button className="action" onClick={load}>もう一度読み込む</button></>
+        : storage.restoreConflict ? <RestoreRecovery owner={session ? session.user.email ?? session.user.id : 'ゲスト'}
+        inspect={storage.reviewRecovery} resume={storage.keepCurrent} reload={load}
+        logout={session && supabase ? async () => {
+          const result = await supabase!.auth.signOut({ scope: 'local' })
+          if (result.error) throw result.error
+        } : undefined} /> : data ? <>
         {storage.sync?.decision && page !== 'クラウド' && <section className="card section-toolbar">
           <p>{storage.sync.decision.kind === 'initial' ? '初回同期の確認が必要です。' : '同期するデータの選択が必要です。'}</p>
           <button className="action" onClick={() => navigate('クラウド')}>同期内容を確認</button>
@@ -177,7 +187,9 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
           <PlanManagement data={data} commit={commit} back={() => navigate('設定')} read={storage.read} />
         </Suspense>}
         {page === 'クラウド' && <CloudAccount back={() => navigate('設定')} session={session} sync={storage.sync} />}
-        {page === 'データ管理' && <DataManagement back={() => navigate('設定')} restore={restore} read={storage.read} />}
+        {page === 'データ管理' && <DataManagement back={() => navigate('設定')} restore={restore} read={storage.read}
+          owner={session ? session.user.email ?? 'アカウント ' + session.user.id : 'ゲスト'} preserveLocalDetails={storage.separatesMatches}
+          readGuestMatches={storage.readGuestMatches} copyGuestMatches={storage.copyGuestMatches} />}
         {page === 'カレンダー' && <Calendar data={data} commit={commit} initialDate={calendarDate} onRecord={record}
           onReflection={date => reflect(date, 'カレンダー')} />}
         {page === '振り返り' && <Reflections data={data} commit={commit} initialDate={reflectionDate} back={() => navigate(previous)} />}
@@ -202,7 +214,7 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
     <nav ref={nav} className="bottom-nav" aria-label="メインナビゲーション">
       <div className="shell grid grid-cols-5">
         {navigation.map(({ label, icon: Icon }) => (
-          <button key={label} type="button" disabled={!data}
+          <button key={label} type="button" disabled={!data || storage.restoreConflict}
             aria-current={label === (page === '振り返り' ? previous : (page === 'バッジ' || page === 'ホーム打撃成績') ? 'ホーム' : (page === 'データ管理' || page === 'クラウド' || page === '練習計画') ? '設定' : page) ? 'page' : undefined}
             onClick={() => { setRecordStart(undefined); navigate(label) }}>
             <Icon size={22} aria-hidden="true" /><span>{label}</span>

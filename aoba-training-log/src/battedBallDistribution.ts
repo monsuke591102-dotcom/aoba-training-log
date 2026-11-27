@@ -1,14 +1,9 @@
-import type { Pitch, PlateAppearance } from './matchDetails'
+import { isHitPlateResult, isNonHitContactResult, type Pitch, type PlateAppearance } from './matchDetails'
 import type { BattingGame } from './recordHistory'
-
-const battedBallResults = new Set<PlateAppearance['result']>([
-  'single', 'double', 'triple', 'homeRun', 'groundOut', 'flyOut', 'lineOut', 'popOut',
-  'doublePlay', 'triplePlay', 'reachedOnError', 'fieldersChoice', 'sacrificeBunt', 'sacrificeFly',
-])
 
 function isCompletedBattedBall(row: PlateAppearance): row is PlateAppearance & { result: NonNullable<PlateAppearance['result']> } {
   if (row.status !== 'complete' || !row.result) return false
-  if (battedBallResults.has(row.result)) return true
+  if (isHitPlateResult(row.result) || isNonHitContactResult(row.result)) return true
   if (row.result !== 'otherOut') return false
   if (row.battedBall) return true
   const finalPitch = row.pitches?.reduce<Pitch | undefined>((last, pitch) =>

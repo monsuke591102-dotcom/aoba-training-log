@@ -4,6 +4,30 @@ import { BallField, normalizeFieldPoint, pitchLocationLabel, pitchPoint, StrikeZ
 import { initialData } from './initialData'
 import { displayPitchType, emptyMatchDetails, initialPitchTypes, isMatchDetails, pitchResultError, type Pitch, type PlateAppearance } from './matchDetails'
 import { Records } from './Records'
+import { pitchCatalog } from './BattingEditor'
+import { contactPitchResult } from './matchDetails'
+
+test('追加球種候補は所有者から渡された打席だけを使い、名称を重複させない', () => {
+  const plate = (id: string, name: string): PlateAppearance => ({
+    id, order: 1, status: 'complete', result: 'walk',
+    pitches: [{ id: 'pitch-' + id, order: 1, result: 'ball', type: { id, name }, location: { zone: 'point', x: .5, y: .5 } }],
+  })
+  const a = plate('a', 'チェンジアップ')
+  const duplicate = plate('duplicate', 'ﾁｪﾝｼﾞｱｯﾌﾟ')
+  expect(pitchCatalog([a, duplicate]).slice(initialPitchTypes.length)).toEqual([a.pitches![0].type])
+  expect(pitchCatalog([])).toEqual(initialPitchTypes)
+  expect(duplicate.pitches![0].type.name).toBe('ﾁｪﾝｼﾞｱｯﾌﾟ')
+})
+
+test('明示した打球は既存の保存値に対応し、非打球を打球にしない', () => {
+  expect(contactPitchResult('homeRun')).toBe('hit')
+  for (const result of ['groundOut', 'reachedOnError', 'sacrificeBunt', 'sacrificeFly', 'fieldersChoice', 'otherOut'] as const) {
+    expect(contactPitchResult(result)).toBe('inPlayNonHit')
+  }
+  for (const result of ['walk', 'hitByPitch', 'droppedThirdStrike', 'strikeoutLooking', 'interference'] as const) {
+    expect(contactPitchResult(result)).toBeUndefined()
+  }
+})
 
 afterEach(() => vi.unstubAllGlobals())
 

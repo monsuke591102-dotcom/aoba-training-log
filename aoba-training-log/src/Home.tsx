@@ -54,7 +54,7 @@ function Gauge({ data, date, dailyRate, pending }: {
     ], { duration: 520, easing: 'ease-out' })
     return () => animation.cancel()
   }, [pending, period, rate])
-  return <div className="gauge">
+  return <div className="gauge" data-period={period}>
     <button type="button" className="gauge-toggle" aria-label={summary + '、' + gaugeLabels[next] + 'に切り替える'}
       onClick={() => setPeriod(next)}>
     <svg viewBox="0 0 140 140" aria-hidden="true">
@@ -63,21 +63,17 @@ function Gauge({ data, date, dailyRate, pending }: {
           <stop stopColor="#effdff" /><stop offset=".19" stopColor="#54d1ff" />
           <stop offset=".44" stopColor="#143e65" /><stop offset=".7" stopColor="#255673" /><stop offset="1" stopColor="#8ae8ff" />
         </linearGradient>
-        <linearGradient id="ring-progress" x1="0" y1="0" x2="1" y2="1">
-          <stop stopColor="#fff799" /><stop offset=".29" stopColor="#ffe029" />
-          <stop offset=".64" stopColor="#5ef22e" /><stop offset="1" stopColor="#02cdb3" />
-        </linearGradient>
       </defs>
       <circle cx="70" cy="70" r="67" className="gauge-ticks" pathLength="100" strokeDasharray=".55 2.575" />
       <circle cx="70" cy="70" r="62" className="gauge-bezel" stroke="url(#ring-metal)" />
       <circle cx="70" cy="70" r="56" className="gauge-track" />
-      {rate !== null && rate > 0 && <circle ref={fill} cx="70" cy="70" r="56" pathLength="100" className="gauge-fill" stroke="url(#ring-progress)"
+      {rate !== null && rate > 0 && <circle ref={fill} cx="70" cy="70" r="56" pathLength="100" className="gauge-fill"
         strokeDasharray={rate + ' 100'} transform="rotate(-90 70 70)" />}
       <circle cx="70" cy="70" r="49" className="gauge-inner" stroke="url(#ring-metal)" />
     </svg>
     <span className="gauge-text" aria-hidden="true">
       <strong>{rate === null ? '—' : <>{rate}<small>%</small></>}</strong>
-      <span>{label}</span>
+      <span className="gauge-period">{label}</span>
       <small>{period === 'day' ? (rate === null ? '集計対象なし' : rate === 100 ? '目標クリア' : range) : range}</small>
     </span>
     </button>

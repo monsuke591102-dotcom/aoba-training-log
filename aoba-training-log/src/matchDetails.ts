@@ -56,6 +56,7 @@ export type PitchLocation =
 export type Pitch = OrderedRow & { type: PitchTypeSnapshot; result: typeof pitchResults[number]; location: PitchLocation }
 
 export type PlateAppearance = DraftableRow & Reflection & {
+  droppedThirdStrikeKind?: 'swinging' | 'looking'
   batterSide?: 'right' | 'left'
   result?: typeof plateResults[number]
   rbi?: number
@@ -105,7 +106,7 @@ type SummaryCounts = {
 }
 
 export interface MatchDetails {
-  version: 1 | 2 | 3
+  version: 1 | 2 | 3 | 4
   opponent?: string
   // A consumer counts only the selected source per discipline, and skips drafts.
   source: { [K in keyof SummaryCounts]-?: typeof sources[number] }
@@ -162,6 +163,17 @@ export function isHitPlateResult(result: PlateAppearance['result']) {
   return result === 'single' || result === 'double' || result === 'triple' || result === 'homeRun'
 }
 
+export function isNonHitContactResult(result: PlateAppearance['result']) {
+  return result === 'groundOut' || result === 'flyOut' || result === 'lineOut' || result === 'popOut' ||
+    result === 'doublePlay' || result === 'triplePlay' || result === 'reachedOnError' || result === 'fieldersChoice' ||
+    result === 'sacrificeBunt' || result === 'sacrificeFly'
+}
+
+export function contactPitchResult(result: PlateAppearance['result']): Pitch['result'] | undefined {
+  if (isHitPlateResult(result)) return 'hit'
+  if (isNonHitContactResult(result) || result === 'otherOut') return 'inPlayNonHit'
+}
+
 export function pitchResultError({ pitches, result }: Pick<PlateAppearance, 'pitches' | 'result'>) {
   const batted = pitches?.filter(pitch => pitch.result === 'hit' || pitch.result === 'inPlayNonHit') ?? []
   if (!batted.length) return
@@ -197,8 +209,12 @@ export function fieldingOpportunityError(play: Pick<FieldingPlay, 'opportunity' 
   }
 }
 
+export function supportedMatchDetailsVersion(value: unknown): value is MatchDetails['version'] {
+  return value === 1 || value === 2 || value === 3 || value === 4
+}
+
 export function isMatchDetails(value: unknown): value is MatchDetails {
-  if (!object(value) || (value.version !== 1 && value.version !== 2 && value.version !== 3) || !optional(value.opponent, text) || !object(value.source) ||
+  if (!object(value) || !supportedMatchDetailsVersion(value.version) || !optional(value.opponent, text) || !object(value.source) ||
     !oneOf(value.source.batting, sources) || !oneOf(value.source.baserunning, sources) || !oneOf(value.source.fielding, sources)) return false
   if (!optional(value.summary, summary => object(summary) &&
     optional(summary.batting, v => summaryFields(v, ['appearances', 'hits', 'rbi'])) &&
@@ -208,6 +224,7 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
   const version = value.version
   const ids = new Set<unknown>()
   if (!rows(value.plateAppearances, row => draftable(row) &&
+    optional(row.droppedThirdStrikeKind, kind => version >= 4 && row.result === 'droppedThirdStrike' && oneOf(kind, ['swinging', 'looking'])) &&
     optional(row.batterSide, v => v === 'right' || v === 'left') &&
     (row.status === 'complete' ? oneOf(row.result, plateResults) : optional(row.result, v => oneOf(v, plateResults))) &&
     optional(row.bunt, v => oneOf(v, buntResults)) && optional(row.battedBall, v => oneOf(v, battedBallTypes)) &&
@@ -232,8 +249,8 @@ export function isMatchDetails(value: unknown): value is MatchDetails {
     rows(value.fielding, row => draftable(row) && linked(row) &&
       (row.status === 'draft' || (row.position !== undefined && row.playType !== undefined)) &&
       optional(row.position, v => oneOf(v, positions)) &&
-      optional(row.playType, v => oneOf(v, legacyFieldingTypes) || (version === 3 && v === 'noBall' && row.opportunity !== undefined)) &&
-      optional(row.opportunity, v => version === 3 && object(v) &&
+      optional(row.playType, v => oneOf(v, legacyFieldingTypes) || (version >= 3 && v === 'noBall' && row.opportunity !== undefined)) &&
+      optional(row.opportunity, v => version >= 3 && object(v) &&
         optional(v.inning, n => count(n, 1)) &&
         optional(v.noBallKind, kind => row.playType === 'noBall' && oneOf(kind, noBallKinds)) &&
         optional(v.catchResult, result => oneOf(result, fieldingCatchResults)) &&

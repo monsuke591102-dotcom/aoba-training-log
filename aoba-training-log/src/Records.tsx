@@ -9,6 +9,7 @@ import { localDate } from './dates'
 import { deleteRecord, InputError, saveRecord, trainingKinds } from './training'
 import { canEditMatches, deleteMatch, saveMatch, type MatchDraft } from './matches'
 import { BattingEditor } from './BattingEditor'
+import { MatchReview } from './MatchReview'
 import { BaserunningEditor } from './BaserunningEditor'
 import { FieldingEditor } from './FieldingEditor'
 import { BattingStatsView } from './BattingStatsView'
@@ -73,7 +74,7 @@ function RecordForm({ data, record, match, date, kind, commit, onClose }: {
           {trainingKinds.map(kind => <option key={kind}>{kind}</option>)}
         </select></label>
         {!standalone && <label>練習メニュー<select required={!menuOptional} value={draft.menuId} onChange={event => update('menuId', event.target.value)}>
-          <option value="">{menuOptional ? 'メニューなし' : '選んでください'}</option>
+          <option value="">{menuOptional ? '練習メニューを選ばずに記録' : '選んでください'}</option>
           {record && <option value={record.menuId}>{record.menuName}（{record.unit}・記録時）</option>}
           {data.menus.filter(item => item.enabled && item.id !== record?.menuId).map(item =>
             <option key={item.id} value={item.id}>{item.name}（{item.unit}）</option>,
@@ -108,7 +109,7 @@ const disciplines = [
   ['fielding', '守備', '確定守備プレー'],
 ] as const
 type Discipline = 'batting' | RunningFieldingKind
-type MatchView = { id: string; kind: Discipline; mode: 'record' | 'stats' }
+type MatchView = { id: string; kind: Discipline; mode: 'record' | 'stats' | 'review' }
 
 export function Records({ data, commit, start }: { data: TrainingData; commit: Commit; start?: { id?: string; date?: LocalDate; kind?: TrainingKind } }) {
   const [editing, setEditing] = useState<string | null>(start ? start.id ? 'record:' + start.id : '' : null)
@@ -128,6 +129,11 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
     const number = (sameDayCounts.get(entry.date) ?? 0) + 1
     sameDayCounts.set(entry.date, number)
     matchNumbers.set(entry.id, number)
+  }
+
+  function matchTitle(id: string, date: LocalDate, opponent: string | undefined) {
+    const number = (sameDayCounts.get(date) ?? 0) > 1 ? ` · 同日第${matchNumbers.get(id)}試合` : ''
+    return `試合${opponent?.trim() ? ` · 対 ${opponent}` : ''}${number}`
   }
 
   useEffect(() => {
@@ -166,13 +172,20 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
 
   if (editMatches && view) {
     const onClose = () => setView(undefined)
-    if (view.mode === 'record') {
+    const ownerAppearances = data.matches?.flatMap(match => match.details?.plateAppearances ?? []) ?? []
+    if (view.mode === 'review') {
+      const entry = matchEntries.find(item => item.id === view.id)
+      if (entry?.match) return <MatchReview key={entry.id} onClose={onClose} commit={commit}
+        target={entry.record ? { recordId: entry.record.id } : entry.match.recordId ? undefined : { matchId: entry.match.id }}
+        description={`${entry.date} · ${matchTitle(entry.id, entry.date, entry.match.details?.opponent)}`}
+        appearances={entry.match.details?.plateAppearances ?? []} ownerAppearances={ownerAppearances} />
+    } else if (view.mode === 'record') {
       const entry = matchEntries.find(item => item.id === view.id)
       if (entry && (entry.record || (entry.match && !entry.match.recordId))) {
         const target = entry.record ? { recordId: entry.record.id } : { matchId: entry.match!.id }
         const details = entry.match?.details
         if (view.kind === 'batting') return <BattingEditor key={entry.id} commit={commit} onClose={onClose}
-          target={target} appearances={details?.plateAppearances ?? []} />
+          target={target} appearances={details?.plateAppearances ?? []} ownerAppearances={ownerAppearances} />
         if (view.kind === 'running') return <BaserunningEditor key={entry.id} commit={commit} onClose={onClose}
           target={target} details={details} />
         return <FieldingEditor key={entry.id} commit={commit} onClose={onClose} target={target} details={details} />
@@ -198,6 +211,7 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
       </section>
       <section className="card">
         <h2>練習履歴</h2>
+        {editMatches && <p className="hint">試合詳細はこの端末のアプリ内に保存され、別端末には自動同期されません。機種変更やデータ消去に備えてJSONバックアップを保存してください。</p>}
         {editMatches && editing === null && matchEntries.length > 0 && <div className="form-actions match-total-actions">
           {disciplines.map(([kind, label]) => {
             const buttonId = `${actionPrefix}-total-${kind}`
@@ -210,10 +224,8 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
           {history.map(entry => {
             const { id, record, match, date } = entry
             const isMatch = isMatchHistoryEntry(entry)
-            const opponent = match?.details?.opponent?.trim()
-            const matchName = opponent ? `試合 · 対 ${opponent}` : '試合'
-            const number = (sameDayCounts.get(date) ?? 0) > 1 ? ` · 同日第${matchNumbers.get(id)}試合` : ''
-            const description = `${date} ${matchName}${number}`
+            const title = matchTitle(id, date, match?.details?.opponent)
+            const description = `${date} ${title}`
             const counts = isMatch && editMatches ? matchHistoryCounts(match?.details) : undefined
             const canRecord = Boolean(record || (match && !match.recordId))
             const deleteMessage = !isMatch ? 'この練習記録を削除しますか？'
@@ -222,15 +234,18 @@ export function Records({ data, commit, start }: { data: TrainingData; commit: C
                   : 'この試合の記録と振り返りを削除しますか？'
             return <li key={id} className={isMatch ? 'match-history-entry' : undefined}>
               {isMatch
-                ? <p className="entry-title"><time dateTime={date}>{date}</time> · {matchName}{number}</p>
+                ? <p className="entry-title"><time dateTime={date}>{date}</time> · {title}</p>
                 : <p className="hint"><time dateTime={date}>{date}</time> · {record?.kind} · {record?.category}</p>}
               {record && <p className={isMatch ? 'hint' : 'entry-title'}>{record.menuName} <span className="record-amount">{record.amount}{record.unit}</span></p>}
-              {!record && match?.recordId && <p className="hint">元の試合記録が見つからない振り返り</p>}
+              {!record && match?.recordId && <p className="hint">関連する練習記録がありません</p>}
               {record?.durationMinutes !== undefined && <p className="hint">所要時間 {record.durationMinutes}分</p>}
               {record?.rating !== undefined && <p className="hint">自己評価 {record.rating} / 5</p>}
               {record?.note && <p className="entry-note">{record.note}</p>}
               {match?.good && <p className="entry-note"><strong>良かったこと</strong> {match.good}</p>}
               {match?.improve && <p className="entry-note"><strong>改善したいこと</strong> {match.improve}</p>}
+              {editMatches && isMatch && match && editing === null && deleting !== id && <button type="button"
+                id={`${actionPrefix}-${id}-review`} className="action" aria-label={`${description} 打席を振り返る`}
+                onClick={() => openMatchView({ id, kind: 'batting', mode: 'review' }, `${actionPrefix}-${id}-review`)}>打席を振り返る</button>}
               {counts && editing === null && deleting !== id && <div className="match-discipline-actions">
                 {disciplines.map(([kind, label, countLabel]) => {
                   const { confirmed, drafts, source } = counts[kind]

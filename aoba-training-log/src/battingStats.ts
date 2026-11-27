@@ -61,7 +61,7 @@ export function calculateMatchBattingStats(match: Pick<MatchEntry, 'details'>): 
 
   const totals = counts<number>(0)
   let rbi: number | null = 0
-  for (const { status, result, rbi: recordedRbi } of details.plateAppearances) {
+  for (const { status, result, rbi: recordedRbi, droppedThirdStrikeKind } of details.plateAppearances) {
     if (status !== 'complete' || result === undefined) continue
     const rule = rules[result]
     totals.pa++
@@ -72,7 +72,10 @@ export function calculateMatchBattingStats(match: Pick<MatchEntry, 'details'>): 
       totals.tb += rule.bases
     }
     if (rule.strikeout) totals.so++
-    if (rule.count) totals[rule.count]++
+    const field = result === 'droppedThirdStrike' && droppedThirdStrikeKind
+      ? droppedThirdStrikeKind === 'swinging' ? 'swingingStrikeouts' : 'lookingStrikeouts'
+      : rule.count
+    if (field) totals[field]++
   }
   return rates(totals.pa ? { ...totals, rbi: Number.isSafeInteger(rbi) ? rbi : null } : counts(null))
 }

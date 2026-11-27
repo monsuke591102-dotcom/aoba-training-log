@@ -1,235 +1,150 @@
-# AOBA TRAINING LOG 開発管理表
+# AOBA TRAINING LOG 開発管理表（公開抜粋）
 
-## 開発状況サマリー
+完全版から生成。更新は正本で行う。
 
-- 開発ブランチ `codex/settings-menu-category-icons` の `570020a` に設定画面の分類別メニュー管理UIを実装し、GitHubに保存済み。Phase 4N.2では開発ブランチ上でVitest 135件、型チェック、通常・隔離ビルドが合格。
-- Phase 4O.3で、設定画面と同期経路を維持した練習計画UI `29e990d` を本番Pagesへ公開済み。直前版はPhase 4N.4の `ba8d4d9`。
-- 確認時の `origin/main` は `f8ed7a8`。新Supabase RPCを使用する同期クライアントを含む。
-- DEV-004は走塁・打撃／投球・守備・試合履歴の4段階を開発ブランチに保存済み。統合検証は `codex/dev-004-integration` で実施し、本番公開とiPhone実機検証は未実施。
-- 2026-11-20のこの会話で確認できる要望6件を照合した。会話で確認できる範囲を超えた当日の要望は、網羅性未確認。
+## 開発再開
 
-## 要望一覧
+- 次回は職場PCで共有ブランチ codex/dev-004-career-spray の取得コミットを照合し、完全版管理表とAGENTS.mdを参照して既存作業を保持したまま再開。iPhone、アイコン原因、分類・成長範囲、R1採用・公開は従来どおり保留。
 
-| ID | 内容 | 優先度 | 状態 | 関連コミット |
+## 2. 開発項目別の進捗一覧
+
+| ID | 開発項目 | 実装状況 | 検証状況 | 本番反映 |
 | --- | --- | --- | --- | --- |
-| DEV-001 | 設定画面の練習メニューを分類別表示し、野球アイコンと分類内の追加ボタンを表示 | 高 | ローカル実装・検証・コミット済み、GitHub保存済み、本番公開済み。2026-11-20のiPhone実機確認6項目はすべて合格（利用者報告）。基本操作、再起動後の保持、既存記録表示を確認済み。VoiceOverと実アカウントのクラウド同期は要確認 | `83dfe4c`、`570020a`、`ba8d4d9`（本番） |
-| DEV-002 | 日次・週間・月間達成率の切替 | 要確認 | UI案あり。期間切替は検討段階。既存のホームには日次ゲージがある | 要確認 |
-| DEV-003 | 月間進捗バー | 要確認 | 配置案あり。仕様・実装状況は要確認 | 要確認 |
-| DEV-004 | 試合記録の保存と振り返り改善 | 要確認 | 走塁、打撃・投球、守備、試合履歴の改善を実装・GitHub保存済み。統合検証で同日試合の分離、保存・復元、成績再集計、旧・新DB書き込み経路の試合詳細拒否を確認。iPhone実機・VoiceOver・実PostgRESTは未検証。本番未公開 | `35e3bb5`（走塁）、`78f4a1f`（打撃・投球）、`96e1cee`（守備）、`004ffda`（履歴）、`codex/dev-004-integration`（統合） |
-| DEV-005 | カレンダーで予定を追加するときの「予定の種類」をプルダウンからアイコンのワンタップ選択に変更 | 低 | 要望登録。現行カレンダーはプルダウン。ホームの予定編集のボタン選択は関連する別画面 | `1218ec4`（ホームの関連UI）。本要望の実装コミットは要確認 |
-| DEV-006 | 分類の追加・名称変更・並び替え | 将来構想 | 現行は固定5分類。分類管理の仕様と実施時期は要確認 | 要確認 |
-| DEV-007 | 練習計画変更画面のメニュー選択を、設定画面と同じ野球アイコン付き5分類表示に統一 | 要確認 | 本番公開済み。候補のVitest 104件、型チェック、ビルド、専用Chrome 375px・430pxで合格。Actionsと公開ファイルの照合も合格。iPhone実機・VoiceOver・実アカウント同期は要確認 | `febd0e2`（実装）、`29e990d71acdc35dd85f0b6e7f5afd3d69f00a0a`（本番） |
+| DEV-001 | 練習メニューの分類と操作 | 実装済み | 実機一部確認済み | 基本機能公開済みの記録 |
+| DEV-002 | 日次・週間・月間の達成率とリング | 実装済み。集計は現行仕様で確定・変更不要 | PCブラウザー検証済み。配色追補は実機検証待ち | 基本機能は従来公開の範囲。配色追補はローカル |
+| DEV-003 | 月間練習日数・目標・バックアップ | 実装済み | PCブラウザー検証済み。目標編集等の実機検証待ち | 従来公開の範囲。今回再照会なし |
+| DEV-004 | 試合記録・振り返り・端末内詳細 | 実装済み。振り逃げ内訳と保存互換対策は追加候補 | 実機一部確認済み。最新の入力・守備UIとPWA残項目は実機検証待ち | 最新機能は未公開。旧版の試合詳細書き込みOFFを維持 |
+| DEV-005 | カレンダーのアイコン付き予定選択 | 実装済み | PCブラウザー検証済み。実機はカレンダー基本操作を確認済み、予定変更の対象操作は検証待ち | 従来公開の範囲。今回再照会なし |
+| DEV-006 | 分類追加・改名・並び替え | 実装済み | PCブラウザー検証済み。分類編集と復元の実機検証待ち | 従来公開の範囲。今回再照会なし |
+| DEV-007 | 計画の分類選択・通常編集の折りたたみ | 実装済み | 実機一部確認済み。通常編集の折りたたみはPC検証済み・実機待ち | 分類選択は公開済みの記録。折りたたみはローカル |
 
-## 決定済み仕様
+集計単位はDEV番号7件。ローカルで全登録範囲を実装済みの番号が7件。番号全体が未実装・対象外のものは各0件。追加候補の検証・公開判定は分けて管理する。対象外の個別機能は第4節に記載し、開発残件に加えない。実機・公開準備の判定は機能単位のため、一律の百分率は出さない。
 
-- 設定画面の分類は「打撃・守備・走塁・体づくり・その他」の順。初期状態は閉じ、個別・一括開閉と複数展開ができる。
-- 分類内の「＋メニュー追加」で、押した分類が初期選択される。分類を閉じても下書きは残り、追加フォームの編集中は別分類の追加ボタンが無効になる。既存のメニューIDと練習記録・予定からの参照を維持する。
-- 練習計画の分類別選択と、設定画面の登録メニュー管理は別の画面。計画版は適用開始日を持ち、過去の日付には当時の版を使う。
-- 本番の試合記録書き込みはOFF。隔離検証では本番と異なるHTTPSオリジンを使い、Supabase接続を無効にする。
-- DEV-007の練習計画変更画面は、設定画面と同じアイコンと分類順で登録済みメニューを開閉・選択する。通常の計画編集から登録メニューの管理は行わず、計画種目の選択解除、数量・目標編集、非表示・未分類メニューの扱いは維持する。
+## 3. 開発項目の最新仕様・検証・完了条件
 
-## 検討案
+### DEV-001 練習メニューの分類と操作
 
-- DEV-002 — ホームの既存の円形達成率メーターをタップするたびに「日次 → 週間 → 月間 → 日次」の順に切り替える案。
-- DEV-003 — 月間進捗バーをホームのポイント表示の下に設置する案。
+練習種目を探しやすくする。野球アイコン付き分類、初期閉鎖・個別／一括開閉、分類内の追加と既存メニューIDの保持を実装。11月20日に実機の基本操作・既存記録・再起動保持を含む6項目が合格。残りはVoiceOverと、承認された実アカウントでの既存参照・同期の確認。必要な確認を第6節で通せば完了。[設定画面](aoba-training-log/src/Settings.tsx) · [ブラウザー試験](aoba-training-log/scripts/settings-focus.browser.mjs)
 
-## 未決定事項
+### DEV-002 達成率の集計とリング
 
-- DEV-002の週・月の区切り、達成率の分母、休養日・見送り・未設定目標の扱いは未決定。
-- DEV-003の進捗指標・目標・計算方法は未決定。DEV-002との関係は要確認。
-- DEV-004の試合をまたぐ球種候補管理、iPhone実機のSafari・ホーム画面追加後のPWA・VoiceOverは今後の確認。詳細データは端末内専用。新しい形式を使った検証オリジンでは、同じIndexedDBを旧版と共用しない。
-- DEV-005の種類アイコンと、タップ時に選択だけ行うか保存まで行うかは要確認。
-- DEV-006の分類ID、既存メニューとの紐づけ、並び順の保存と互換性は要確認。
-- DEV-001のVoiceOver・実アカウントのクラウド同期は要確認。
-- DEV-007のiPhone実機・VoiceOver・実アカウントのクラウド同期は要確認。ローカル検証では合成データのメニューID、計画・記録の参照、保存・再読み込みを確認済み。
+達成率と表示中の期間を識別しやすくする。青・緑・オレンジのリングと期間表示を連動し、文字でも区別。休養・見送り・目標なし・単位不一致だけの実績は除外し、対象の未実施は0、各項目100％上限。週間は月曜から当日、月間は暦月初日から当日までの日付×メニューを等しく平均。現行集計で確定。PCで切替・配色・キーボードと既存集計を確認済み。完了条件はSafari／PWAの画面幅で期間を見失わず切り替え、VoiceOverで現在の期間が分かること。[ホーム](aoba-training-log/src/Home.tsx) · [集計](aoba-training-log/src/progress.ts)
 
-## 公開状況・技術的制約
+### DEV-003 月間練習日数と目標
 
-- Phase 4O.3の本番Pagesは `codex/release-plan-menu-category-ui` の `29e990d71acdc35dd85f0b6e7f5afd3d69f00a0a`。Actions [44692859842](https://github.com/monsuke591102-dotcom/aoba-training-log/actions/runs/44692859842) とPagesデプロイ `7935693846` は成功。HTML、JS、CSS、Manifest、Service Worker、アイコンの全10ファイルはHTTP 200で、Actions成果物とSHA-256が一致。配信JSで新しい分類UI、旧経路の初回INSERT・`training_log_update_snapshot`、新RPC呼び出しなし、試合書き込みOFFを確認済み。Pages環境には今回のリリースブランチを完全一致で追加し、既存許可を維持。
+月間の日数目標と実績を確認できるようにする。暦月で記録日を重複なく数え、月別目標は1〜月末日数、空欄で解除。目標は端末内で管理し通常JSONの任意項目に収録。旧JSONに項目がない場合は現在値を保持。PCで編集・保存と復元を検証済み。完了条件は実機で月切替、保存と再起動保持、読み上げを確認すること。[月間進捗](aoba-training-log/src/MonthlyProgress.tsx) · [月別目標の試験](aoba-training-log/src/monthlyGoals.test.ts)
 
-- Phase 4N.4の直前公開版は `codex/release-settings-menu-category-icons` の `ba8d4d9a13d4aef20a7f85cf17d7797d280e5dcd`。Actions実行 [44690353470](https://github.com/monsuke591102-dotcom/aoba-training-log/actions/runs/44690353470) とPagesデプロイ `7935360004` は成功。HTML、JS、CSS、Manifest、Service Worker、アイコンはHTTP 200で、Actions成果物とのSHA-256が一致。配信JSに5分類のUI、従来の初回INSERTと旧更新RPCを確認。新RPCの呼び出しは検出されなかった。
-- 前回公開は `codex/release-routine-menu-ui` の `cb1077d`（デプロイ `7934416859`）。今回とのコード差分はUIとテストの3ファイル。Phase 4N.3ではVitest 103件、型チェック、通常・接続無効ビルド、専用Chromeの375px・430pxでの操作検証が合格。既存復旧用 `codex/rollback-routine-menu-ui` は `718b0af`。
-- **新しいSupabase RPC `training_log_write_snapshot_v2` は本番未適用。** 取得済み `main` の同期クライアントは新RPCを呼び、旧経路へのフォールバックがない。現行の本番同期を維持するため、`main` をそのままデプロイできない。
-- 新RPCの実PostgREST経由での権限・競合・互換性検証と本番適用は要確認。試合書き込みの有効化には旧クライアントの書き込み制御、端末更新、バックアップ確認と別途承認が必要。
-- 統合検証では、端末内詳細に対するクライアント側の通信前拒否、新RPCの作成・更新拒否、旧初回INSERT・旧更新RPCのDB側拒否をモック通信とローカルPGliteで確認した。旧経路を含む制約SQLは開発ブランチ上の候補で、本番Supabaseへの適用・監査は未実施。
-- 参照資料は [README](aoba-training-log/README.md) と [スナップショット書き込み切り替え手順](aoba-training-log/supabase/snapshot-write-v2.md)。
+### DEV-004 試合詳細・成績・端末内保護
 
-## 管理ルール
+| 機能単位 | 確定仕様と実装 | 検証・完了条件 |
+| --- | --- | --- |
+| 打席・投球・走塁・守備と試合履歴 | 記録・編集・削除と試合別／通算成績。クラブチーム名は自由入力し、保存名を履歴・振り返りに使用。総球数は記録投球数と旧手入力値を区別。旧走塁の欠落は不明、履歴件数は保存イベントを採用。後者3件は現行仕様で確定 | PC・自動試験と従来Safariの対象操作を確認。新UIの実機は第6節 |
+| 通算打球分布 | 確定した位置付き打球を集計。非打球・下書き・簡易集計を区別。同日別試合と重複座標、位置なし・算出不可を表示 | 11/23 Safariで4試合、位置あり5件、位置未記録1件、算出不可1試合、+3と再読込保持を確認。PWA側の保持と一覧から球場図の連動を第6節で確認 |
+| 端末内保存・所有者分離 | 試合詳細はゲスト／接続先＋認証ID別のIndexedDB。同期候補から分離し、v2 RPCとDB側送信拒否を維持。ゲストからのコピーは明示操作。通常JSON v1〜v4と詳細保持を実装 | 自動試験で競合、送信状態、所有者分離、バックアップを検証。Safariでゲスト／Bの表示分離を確認、保存値・退避の照合は未確認。PWAでAとB／ゲストを第6節の範囲で確認 |
+| 復元衝突と復旧 | 途中の旧タブ書き込みを検出して同期を止め、3候補・診断JSON・通常バックアップを案内。退避確認後に現在データを保持して再開。チェック欄案内を改善 | 11/23 Safariで3候補、診断JSON、オフライン復旧、再接続後の同期済みを確認。旧チェック欄事象の直接原因は未確認。関連機能が変わった場合に絞って再確認 |
+| 打席振り返り | 「投球コース」「打球記録」の閲覧専用2タブ。明示編集で元の打席へ戻る。コメント・記録済みの値を表示 | PCで同日別試合、打席切替、非打球、位置なし、コメント、ゾーン外の重複、編集後の復帰。Safari／PWAの操作を確認すると完了 |
+| 打球入力・球種候補 | 「打球」から打席結果へ進み、保存値は従来の `hit`／`inPlayNonHit`。旧 `inPlay` は自動分類しない。既定球種と同一所有者の追加球種を名称で重複排除し明示選択 | PC・自動試験済み。実機でフォーカス、既存結果の訂正、候補選択を確認 |
+| 守備履歴・公式記録候補 | 旧位置変更とプレーを同じ一覧に表示。順序不明は明示し位置変更は集計しない。PO候補は捕球成功でアウトのフライ・ライナーに限定。送球によるPO・AとEは手動。候補は確定値にせず、食い違う場合は確認 | 自動試験とPC操作確認済み。実機で履歴と候補の確認操作を確認 |
+| 振り逃げの内訳 | 空振り・見逃し・不明を明示選択。既存の振り逃げは詳細不明として保持。三振合計と他の成績は維持 | 追加候補で実装済み。互換性試験と公開条件は第5・6節 |
 
-- 要望は固有IDで管理する。削除・取り下げの理由と経緯は更新履歴に残す。
-- 決定済み仕様、検討案、未決定事項を区別する。
-- ローカル実装・検証、ローカルコミット、GitHubへのpush、本番公開をそれぞれ記録する。
-- 新要望を登録する前に既存項目との重複を確認する。
-- 進捗報告では管理表の記載と実際のGit状態を照合する。
-- 確認できない情報は「要確認」とする。
+根拠は [打球分布](aoba-training-log/src/battedBallDistribution.ts)、[打席入力](aoba-training-log/src/BattingEditor.tsx)、[振り返り](aoba-training-log/src/MatchReview.tsx)、[守備入力](aoba-training-log/src/FieldingEditor.tsx)、[端末内保存と復元の試験](aoba-training-log/src/localMatchStorage.test.ts)、[クラウド送信検査](aoba-training-log/src/snapshotApi.test.ts)。
 
-## 更新履歴
+### DEV-005 カレンダーの予定選択
 
-| 日付 | 対象ID | 変更内容 | 根拠 |
+既存の予定種類をアイコンから選び、保存は別操作で確定。既存の予定・メニュー参照を維持し、ホーム側は従来どおり。PCで作成・編集・再読込・キーボードを確認。既報の実機基本操作を持ち越し、予定種別の選択から保存・取消と読み上げを確認すれば完了。[予定ダイアログ](aoba-training-log/src/PlanDialog.tsx)
+
+### DEV-006 分類の管理
+
+既定5分類と追加分類の名称・順番・所属を設定し、練習メニューと計画で利用。設定はブラウザー単位で通常JSONに収録し、既存メニューID・記録時分類を保持。削除・非表示、カスタム分類別の成長集計と設定のクラウド同期は対象外。PCで設定・計画との連携・復元を確認。完了条件は実機で代表分類の改名／並び替えと計画への反映、必要な保存・復元を確認すること。[分類管理](aoba-training-log/src/CategoryManagement.tsx) · [分類試験](aoba-training-log/src/menuCategories.test.tsx)
+
+### DEV-007 練習計画の編集
+
+分類で選びやすくし、通常編集の縦スクロールを減らす。5分類を設定と共有し、通常編集は種目ごとに初期閉鎖、名前・条件・目標を要約。開始日・保存・取消は上部に配置。既存の計画・履歴・メニューIDを維持。既報のiPhoneは分類選択・取消・計画と履歴の閲覧を確認。PCで開閉後の入力保持と分類・JSONを確認し、適用日・旧版保持は自動試験を参照。完了条件は実機で複数種目の入力保持と保存を確認し、必要な実アカウントの整合性を確認すること。[計画管理](aoba-training-log/src/PlanManagement.tsx) · [計画試験](aoba-training-log/src/routines.test.ts)
+
+## 4. 残作業・優先順位
+
+| 分類 | 優先度 | 課題・依存関係・対応 | 今回の新版公開 |
 | --- | --- | --- | --- |
-| 要確認（Phase 4N.2完了後） | DEV-001〜DEV-006 | 初版に6件を登録 | 初版の更新履歴、Phase 4N.2の確認記録 |
-| 2026-11-20 | DEV-001〜DEV-006 | 優先度、検討案、進捗、未決定事項を整理し、管理ルールを追加 | 本日の依頼、Git履歴、README、設定・記録・カレンダーの実装 |
-| 2026-11-20 | DEV-001 | 現行本番を基点に設定UIのリリース候補を作成し、旧同期経路とUIを検証 | Phase 4N.3の依頼、GitHubデプロイ履歴、候補 `ba8d4d9` の差分・ビルド・操作結果 |
-| 2026-11-20 | DEV-001 | 設定UIを本番公開し、配信ファイルと旧同期経路を照合 | Phase 4N.4の承認、Actions `44690353470`、Pages `7935360004`、SHA-256照合結果 |
-| 2026-11-20 | DEV-001 | 本番 `ba8d4d9` のiPhone実機確認6項目がすべて合格したことを記録 | 利用者の実機確認報告 |
-| 2026-11-20 | DEV-007 | 練習計画の5分類UI統一を登録し、ローカル実装・検証結果を記録 | Phase 4O.1の確定仕様、`febd0e2`、Vitest・ビルド・専用Chromeの検証結果 |
-| 2026-11-20 | DEV-007 | 現行本番を基点とする候補を作成し、旧同期と両画面の操作を検証 | Phase 4O.2、Pages履歴 `7935360004`、候補 `29e990d` の差分・テスト・ビルド結果 |
-| 2026-11-20 | DEV-007 | 練習計画UIを本番公開し、配信ファイル・旧同期経路・試合書き込みOFFを確認 | Phase 4O.3の承認、Actions `44692859842`、Pages `7935693846`、SHA-256照合結果 |
-| 2026-11-20 | DEV-004 | Phase B-1の試合詳細モデルと端末内保存を実装。バックアップv2、旧書き込み経路への送信拒否、旧形式での上書き防止を検証 | Phase B-1依頼、Vitest 151件、TypeScript型チェック、通常・隔離ビルド |
-| 2026-11-20 | DEV-004 | Phase B-2の打席入力UIを実装。失策位置と任意のアウト数を追加し、保存・再読込・削除・通信なしを隔離環境で検証 | Phase B-2依頼、Vitest 155件、TypeScript型チェック、通常・隔離ビルド、専用Chromeの375px・430px |
-| 2026-11-20 | DEV-004 | Phase B-2.1で固定保存バー、選択欄4件、投球番号を改善。保存失敗でも入力を保持し、画面縮小によるキーボード表示を模擬検証。実機キーボード・セーフエリアは要確認 | Phase B-2.1依頼、Vitest 155件、通常・隔離ビルド、専用Chromeの375px・430px、全17領域の寸法確認 |
-| 2026-11-20 | DEV-004 | Phase B-3Aで打撃成績の1試合・複数試合集計を実装。簡易集計は記録済みの打席数・安打数のみ。打点と振り逃げの三振種別は必要情報が不足。成績UI・クラウド対応は次工程 | Phase B-3A依頼、Vitest 163件、TypeScript型チェック |
-| 2026-11-20 | DEV-004 | Phase B-3Bで試合別・通算の打撃成績カードと試合別球場図を実装。未算出は「—」、実数の0と区別。通算の打球分布、iPhone実機・クラウド対応は今後の確認。未push・未公開 | Phase B-3B依頼、Vitest 167件、型チェック・通常・隔離ビルド、専用Chrome 375px・430px |
-| 2026-11-20 | DEV-004 | Phase B-3Cでホームの打撃成績4項目を追加。履歴と同じ対象・集計関数で通算を表示し、詳細へ移動・復帰できる。iPhone実機・VoiceOverは要確認。未push・未公開 | Phase B-3C依頼、Vitest 170件、型チェック・通常・隔離ビルド、専用Chrome 375px・430px |
-| 2026-11-20 | DEV-004 | Phase C-1で試合の走塁入力を追加。ダイヤモンドでの塁選択、下書き・確定・編集・確認付き削除を端末内で検証。走塁成績・守備UI・クラウド対応は次工程。未push・未公開 | Phase C-1依頼、Vitest 175件、型チェック・通常・隔離ビルド、専用Chrome 375px・430px |
-| 2026-11-20 | DEV-004 | Phase C-2で守備位置履歴、公式記録、育成観察、球場図の相対座標、下書き・確定・編集・確認付き削除を追加。走塁・守備の集計は未実装。未push・未公開 | Phase C-2依頼、Vitest 178件、型チェック・通常・隔離ビルド、専用Chrome 375px・430px |
-| 2026-11-20 | DEV-004 | Phase C-3Aで走塁・守備の試合別、通算、守備位置別の集計を実装。育成観察は別集計。簡易走塁のアウト内訳と簡易守備の位置別配分は未算出。表示UIは次工程。未push・未公開 | Phase C-3A依頼、Vitest 186件、TypeScript型チェック |
-| 2026-11-20 | DEV-004 | Phase C-3Bで試合別・通算の走塁守備カード、守備位置の折りたたみ、確定済み育成観察を追加。不足値は「—」。未push・未公開 | Phase C-3B依頼、Vitest 190件、型チェック・通常・隔離ビルド、専用Chrome 375px・430px |
-| 2026-11-20 | DEV-004 | Phase D-1で打席の任意打点を追加。確定打席または指定された簡易集計の打点から試合別・通算を算出し、全件が揃わない場合は「—」と表示。詳細は端末内専用。iPhone実機は未確認、未push・未公開 | Phase D-1依頼、Vitest 196件、型チェック・通常・隔離ビルド、専用Chrome 375px・430px |
-| 2026-11-20 | DEV-004 | Phase E-2Aで試合詳細を新同期RPCの作成・更新双方で拒否する追加SQLを作成。修正前の受理を再現し、修正後は保存内容とrevisionが不変であることをPGliteで確認。本番未適用・未公開。新旧RPCの移行はE-2Bで検証 | Phase E-1監査、E-2Aのローカル回帰テスト |
-| 2026-11-20 | DEV-004 | 走塁・打撃／投球・守備・試合履歴を統合検証。新しい詳細形式を含む端末に対する旧バックアップ形式の上書きを拒否し、旧初回INSERT・旧更新RPCにもDB側の拒否を追加。本番未適用 | Vitest、IndexedDB、PGlite、通常ビルド、Chromium 375px・430px |
+| 公開前必須の開発 | P0（問題が出た場合） | 現時点で確定済み公開範囲に追加必須の実装は特定されていない。最終検証でデータ消失、所有者混在、詳細送信、復旧不可が見つかれば該当箇所を修正し影響範囲を再検証 | 該当する障害が残れば停止 |
+| 公開前必須の検証 | P0 | 候補を固定し、端末内保存・PWA復元とオフライン保持・同期拒否・更新経路を第6節で確認。候補の出力と公開設定を照合 | 必須条件が未確認のため保留 |
+| 公開候補の採用判断 | P0（追加候補） | 振り逃げ内訳を含める場合は、端末実機の更新・復元・切り戻し条件を第5・6節で確認 | 未確認なら追加候補を公開しない。保全した従来候補とは別判定 |
+| 利用者の仕様判断 | P1 | 登録済みの着手仕様に新たな判断待ちは確認されていない。振り逃げを同時公開する場合は採用範囲を決め、互換条件の合格後に公開を承認する | 範囲に入れる場合のみ保留 |
+| 公開後でも対応できる改善 | P2 | Private検証環境のアイコン表示原因の調査は、候補の正規オリジンで正しいアイコン・起動を確認できた場合に延期可。方式固有の補助ページはローカル準備済み | 正規候補でも誤表示・独立起動失敗が出れば影響を切り分けて判断 |
+| 対象外 | — | DEV-003月別目標のクラウド同期、DEV-006の分類設定のクラウド同期・分類削除／非表示・カスタム分類別の成長集計、DEV-005のホーム側予定操作変更、DEV-004の試合詳細クラウド送信 | 残件集計に含めない |
 
-## DEV-004 追補｜2026-11-20 iPhone実機検証・改善要望
+## 9. 個別の修正・改善要望の最終監査（2026-11-23）
 
-位置づけ
+基準は `codex/dev-004-career-spray` の HEAD `2bac38d50278c096a1a35868700a7f730131f312` と未コミットを含む現行ソース。第8節の全履歴、確認できた利用者指示と既存の検証記録を読み取り照合した。DEV番号の進捗とは別集計。同じ要望の追補・現行維持・過去の障害はまとめ、試験の単独操作や公開作業は要望数に含めない。
 
-以下の進捗区分と実機結果は追補登録時点の記録です。その後の実装・統合検証は要望一覧と更新履歴を参照してください。
+**確認できた監査単位 64件。** A 36件、B 8件、C 0件、D 0件、E 2件、F 2件、G 16件。A 希望どおり、B 合意済み変更で実装、C 相違あり、D 未実装、E 要判断、F 明示保留・対象外、G 実装済みで検証待ち。Eの判断・追加確認を個別に管理し、GはPC・自動での確認を残したままiPhone等の実機項目を管理する。
 
-本追補は、2026年11月20日に実施したiPhone Safariでの試合記録検証結果と、その過程で確認・決定した改善要望を記録するものです。
+**資料の境界。** 11/20の改善管理表（UI-01〜UI-06・DATA-01）原本と旧70項目監査原本は、作業ツリー・参照可能なローカルGit履歴・既存検証フォルダーの検索では特定できなかった。11/20のDEV-004追補は確認済み。UI-06は今回の利用者指示にある原要望を根拠に照合した。UI-01〜05・DATA-01は原番号との対応を未確認とし、件数に補わない。旧70項目との完全な対応関係と未収録要望の有無は未確認。Vitest 282・Edge 20・4ビルド1の既存記録を使用し、全件の再試験は行わず、今回の投球案内変更だけ関連Vitest 20件と型チェックを実施した。
 
-既存DEV-004を置き換えるものではありません。既存項目と重複する内容は、今後の仕様整理時に統合します。
+| 監査番号・DEV | 判定 | 確認できた要望 | 現行との差分・残作業 | コード・検証根拠 |
+| --- | --- | --- | --- | --- |
+| 01 · DEV-001 | A | 設定の分類順・野球アイコン | 既定5分類・同じ分類ラベルを使用。 | [Settings.tsx L216](aoba-training-log/src/Settings.tsx#L216)・11/20実機6項目記録・Edge分類 |
+| 02 · DEV-001 | A | 初期閉鎖、個別／一括閉鎖、複数展開 | detailsと一括操作。キーボードで隠れた欄にフォーカスを残さない。 | [Settings.tsx L101](aoba-training-log/src/Settings.tsx#L101)・Edge 375/430 |
+| 03 · DEV-001 | A | 分類内追加・分類初期値・編集中の保護 | 分類から追加フォームを開き、分類IDを引き継ぐ。 | [Settings.tsx L120](aoba-training-log/src/Settings.tsx#L120)・Edge分類追加 |
+| 04 · DEV-001 | A | 既存メニューIDと参照保持 | 割当を別管理。記録・計画・予定の参照は維持。 | [Settings.tsx L36](aoba-training-log/src/Settings.tsx#L36)・menuCategories.test.tsx・Edge |
+| 05 · DEV-002 | A | 日次→週間→月間の円形メーター | ゲージを押して循環。日付範囲と対象なしを表示。 | [Home.tsx L31](aoba-training-log/src/Home.tsx#L31)・Edgeタッチ・キーボード |
+| 06 · DEV-002 | G | 期間別の色と文字・色連動 | 日次青・週間緑・月間オレンジ。濃色背景に合わせた色で、色以外の名前と読み上げを維持。 | [Home.tsx L58](aoba-training-log/src/Home.tsx#L58)・[stadium.css L455](aoba-training-log/src/stadium.css#L455)・Edge配色合格。iPhone／VoiceOver待ち |
+| 07 · DEV-002 | B | 達成率の分母・期間・丸め | 11/23の現行維持指示。各日×メニュー、月曜・暦月から当日、既存の休養等除外。 | [progress.ts L7](aoba-training-log/src/progress.ts#L7)・routines.test.ts |
+| 08 · DEV-003 | G | ポイント欄の下に月間進捗 | ホームのStatus直後に置き、同日の記録を重複計上しない。 | [Home.tsx L173](aoba-training-log/src/Home.tsx#L173)・[MonthlyProgress.tsx](aoba-training-log/src/MonthlyProgress.tsx)・Edge。iPhoneでの目標編集待ち |
+| 09 · DEV-003 | A | 月別の目標編集・解除と表示 | 暦月の範囲で設定、空欄で解除、バーだけ上限100%。 | [MonthlyProgress.tsx](aoba-training-log/src/MonthlyProgress.tsx)・[monthlyGoals.ts](aoba-training-log/src/monthlyGoals.ts)・monthlyGoals.test.ts・Edge |
+| 10 · DEV-003 | A | 月別目標をJSONで保全 | 任意項目がない旧JSONでは現在の目標保持。 | [backup.ts L155](aoba-training-log/src/backup.ts#L155)・monthlyGoals.test.ts・backup.test.ts |
+| 11 · DEV-004 | B | UI-06 自然な打撃姿勢・不自然な打者図の改善 | 当初は自然な姿勢への改善を希望。650a02fで図を削除し左右打席を残した。今回、利用者が図を表示しない変更仕様を明示承認。復活・再作成は不要。 | [投球図](aoba-training-log/src/BattingDiagrams.tsx#L128)・[左右打席](aoba-training-log/src/BattingEditor.tsx#L247)・今回の承認と既存描画回帰 |
+| 12 · DEV-004 | A | 打席の追加・下書き・確定・編集・確認付き削除 | 既存保存を保護し、紐付きの走塁／守備があれば削除を拒否。 | [BattingEditor.tsx L72](aoba-training-log/src/BattingEditor.tsx#L72)・11/20 Safari・Edge |
+| 13 · DEV-004 | G | 固定保存バー・入力欄・保存失敗時の入力保持 | バーを表示し保存成功時のみ編集を閉じる。 | [useMatchSaveBar.ts](aoba-training-log/src/useMatchSaveBar.ts)・[BattingEditor.tsx L200](aoba-training-log/src/BattingEditor.tsx#L200)・155件時点PC記録。実機キーボード・セーフエリア待ち |
+| 14 · DEV-004 | B | 投球「ヒット」、安打以外のアウト・失策入力 | 後の明示指示により投球は「打球」に統合。打席結果で安打／失策等を選択し内部値を整合。旧inPlayは自動分類しない。 | [BattingEditor.tsx L156](aoba-training-log/src/BattingEditor.tsx#L156)・[matchDetails.ts L171](aoba-training-log/src/matchDetails.ts#L171)・Edgeの打球入力・訂正 |
+| 15 · DEV-004 | A | 打球と投球入力の案内文 | 通常結果は選択時、「打球」は次画面で打席結果を選んだ時に一覧へ反映。端末への保存は打席の下書き保存または確定と案内。保存処理・入力データ・導線は同じ。 | [投球反映](aoba-training-log/src/BattingEditor.tsx#L156)・[案内](aoba-training-log/src/BattingEditor.tsx#L284)・関連Vitest 20件と型チェック合格 |
+| 16 · DEV-004 | A | 単打・二塁打・三塁打・本塁打、凡打等の選択 | 投球と打席結果を別に保存し、打球性質・位置も別入力。 | [BattingEditor.tsx L9](aoba-training-log/src/BattingEditor.tsx#L9)・[BattingEditor.tsx L352](aoba-training-log/src/BattingEditor.tsx#L352)・batting.test.tsx・Edge |
+| 17 · DEV-004 | A | 失策位置、任意のアウト数、最終投球前カウント・バント | 各項目を別に入力・検証。 | [BattingEditor.tsx L315](aoba-training-log/src/BattingEditor.tsx#L315)・[matchDetails.ts L211](aoba-training-log/src/matchDetails.ts#L211)・batting.test.tsxの独立検証 |
+| 18 · DEV-004 | A | 3×3ガイド付き任意位置と旧9マス互換 | 相対座標で保存。旧ゾーン位置を変換表示しモデルを保持。 | [BattingDiagrams.tsx L20](aoba-training-log/src/BattingDiagrams.tsx#L20)・[BattingDiagrams.tsx L128](aoba-training-log/src/BattingDiagrams.tsx#L128)・batting.test.tsx |
+| 19 · DEV-004 | G | ゾーン外、投球順・球種、重なり・タップ精度 | ゾーン外の相対位置、番号、球種・重なり調整を実装。 | [BattingDiagrams.tsx L71](aoba-training-log/src/BattingDiagrams.tsx#L71)・Edgeにゾーン外・重複。実機の狙いやすさ待ち |
+| 20 · DEV-004 | A | ストレートの速・遅を記号で区別しない | 表示は標準球種へ寄せ、旧スナップショットは保持。 | [matchDetails.ts](aoba-training-log/src/matchDetails.ts)・[BattingEditor.tsx L51](aoba-training-log/src/BattingEditor.tsx#L51)・batting.test.tsxの旧ストレート |
+| 21 · DEV-004 | A | 手入力「球数（任意）」を削除 | 記録球数と旧手入力値を別表示。総球数を推測しない。 | [BattingEditor.tsx L316](aoba-training-log/src/BattingEditor.tsx#L316)・コード・モデル照合、旧値表示 |
+| 22 · DEV-004 | B | 未記録投球を含む総球数 | 最新指示で現行を採用。記録行数で表示し旧手入力値を参考表示。 | [BattingEditor.tsx L316](aoba-training-log/src/BattingEditor.tsx#L316)・現行維持の明示指示 |
+| 23 · DEV-004 | G | 試合横断の球種候補 | 現在の所有者の試合だけを参照し、名称の重複を抑え、明示選択。 | [BattingEditor.tsx L51](aoba-training-log/src/BattingEditor.tsx#L51)・[Records.tsx L175](aoba-training-log/src/Records.tsx#L175)・batting.test.tsx。iPhone選択待ち |
+| 24 · DEV-004 | A | 打撃成績の試合別・通算、0と未算出 | 確定打席、選択された集計元、未知値を区別。 | [battingStats.ts L54](aoba-training-log/src/battingStats.ts#L54)・[BattingStatsView.tsx](aoba-training-log/src/BattingStatsView.tsx)・battingStats.test.ts・11/20 Safari |
+| 25 · DEV-004 | A | 打点の任意入力と集計 | 実数0と未入力を分離し、対象が揃わない場合は未算出。 | [BattingEditor.tsx L357](aoba-training-log/src/BattingEditor.tsx#L357)・[battingStats.ts L54](aoba-training-log/src/battingStats.ts#L54)・battingStats.test.ts・D-1記録 |
+| 26 · DEV-004 | G | ホームの打撃成績4項目から通算詳細へ | 履歴と同じ集計・画面を利用し、閉じるとホームへ戻る。 | [Home.tsx L248](aoba-training-log/src/Home.tsx#L248)・[App.tsx L168](aoba-training-log/src/App.tsx#L168)・B-3Cと関連自動試験。最新実機待ち |
+| 27 · DEV-004 | A | 通算打球分布の対象・除外・件数 | 確定した安打・凡打・失策等、簡易集計／位置不明／非打球を区別。 | [battedBallDistribution.ts L4](aoba-training-log/src/battedBallDistribution.ts#L4)・11/23 Safari 4試合・5件・位置なし1・算出不可1 |
+| 28 · DEV-004 | A | 同日別試合・重複座標・打席ID | 試合IDと打席IDで識別し、同一位置を件数表示。 | [battedBallDistribution.ts L15](aoba-training-log/src/battedBallDistribution.ts#L15)・[BattingStatsView.tsx](aoba-training-log/src/BattingStatsView.tsx)・11/23 Safari 同日別試合と+3。自動でID衝突 |
+| 29 · DEV-004 | G | 打球一覧選択と球場図連動、位置は概略 | 一覧で選択。+3マーカーは現行の表示専用。 | [BattingStatsView.tsx](aoba-training-log/src/BattingStatsView.tsx)・Edge選択確認。iPhoneの一覧連動未確認 |
+| 30 · DEV-004 | G | 振り返り2タブ・試合／打席切替・コメントと編集復帰 | 閲覧専用の図を再利用し、明示編集後に元の打席へ戻る。 | [MatchReview.tsx L21](aoba-training-log/src/MatchReview.tsx#L21)・Edge同日別・コメント・復帰。iPhone待ち |
+| 31 · DEV-004 | A | 振り返りの非打球／未記録の画面 | 利用者承認により、確定済みの四球・死球・空振り三振・見逃し三振・振り逃げは旧座標のマーカーを個別図で隠し「打球記録なし」と表示。その他のアウトや結果未確定の旧座標は維持。保存・編集・投球図・通算分布は変更なし。 | [個別図](aoba-training-log/src/MatchReview.tsx#L21)・対象Edge回帰1件（同日別試合、打席切替、保存値・通算分布の不変） |
+| 32 · DEV-004 | A | 中学硬式クラブ名の自由入力・表示 | 学校名や団体選択を強制せず、保存名を履歴・振り返りで表示。 | [Records.tsx L93](aoba-training-log/src/Records.tsx#L93)・[Records.tsx L175](aoba-training-log/src/Records.tsx#L175)・Edge同日別試合 |
+| 33 · DEV-004 | G | 振り逃げは空振り・見逃し・不明 | 本人が確定。旧記録は不明で合計／打数等は維持。 | [BattingEditor.tsx L341](aoba-training-log/src/BattingEditor.tsx#L341)・[battingStats.ts L54](aoba-training-log/src/battingStats.ts#L54)・4ビルドPC・自動合格。iPhone待ち |
+| 34 · DEV-004 | B | 走塁UIを二盗・三盗の成功／失敗4択へ | 11/20追補で通常進塁の細かな入力とダイヤモンドを整理。旧データは保持する。 | [BaserunningEditor.tsx](aoba-training-log/src/BaserunningEditor.tsx)・11/20 Safari・Edge |
+| 35 · DEV-004 | A | 盗塁成功・盗塁死と成功率の整合 | 確定詳細では0件と不明を区別し、片側が0でも率を算出。 | [runningFieldingStats.ts L48](aoba-training-log/src/runningFieldingStats.ts#L48)・runningFieldingStatsの既存試験・Edge |
+| 36 · DEV-004 | B | 旧走塁の欠落値・不明なアウト内訳 | 最新指示で現行維持。不明値を0で埋めない。 | [runningFieldingStats.ts L48](aoba-training-log/src/runningFieldingStats.ts#L48)・集計自動試験 |
+| 37 · DEV-004 | A | 守備はイニング一括でなくプレー単位 | イニングと守備位置、複数ポジション。機会なしの位置入力を強制しない。 | [FieldingEditor.tsx L96](aoba-training-log/src/FieldingEditor.tsx#L96)・[FieldingEditor.tsx L175](aoba-training-log/src/FieldingEditor.tsx#L175)・fielding.test.tsx・Edge |
+| 38 · DEV-004 | A | 守備種類と捕球／送球／アウト・セーフ | ゴロ・ライナー・フライ・バント・打球なし。捕球の結果と送球エラーは分離。打球なしの結果入力は任意。 | [FieldingEditor.tsx L11](aoba-training-log/src/FieldingEditor.tsx#L11)・[FieldingEditor.tsx L192](aoba-training-log/src/FieldingEditor.tsx#L192)・fielding.test.tsx・Edge |
+| 39 · DEV-004 | A | PO・A・Eをアウト・セーフと分離 | 未入力、確認済みなし、個別の公式記録を区別し、別に集計。 | [FieldingEditor.tsx L207](aoba-training-log/src/FieldingEditor.tsx#L207)・[runningFieldingStats.ts L76](aoba-training-log/src/runningFieldingStats.ts#L76)・11/20 Safari・fielding.test.tsx |
+| 40 · DEV-004 | B | プレーごとの育成入力廃止、試合単位の振り返り | 新規の育成入力を外し、旧内容は閲覧のみ、試合側のコメントを使用。11/20追補に根拠。 | [FieldingEditor.tsx L39](aoba-training-log/src/FieldingEditor.tsx#L39)・[Records.tsx L90](aoba-training-log/src/Records.tsx#L90)・fielding.test.tsx |
+| 41 · DEV-004 | G | 「第1位置」の改善と守備履歴の統合 | 位置変更とプレーを別表示。既知イニング順、前後不明と旧データを保持。 | [FieldingEditor.tsx L126](aoba-training-log/src/FieldingEditor.tsx#L126)・fielding.test.tsx。実機待ち |
+| 42 · DEV-004 | G | PO候補と既存公式記録の確認 | 捕球成功でアウトになったフライ／ライナーだけ候補。候補が変わって選択と競合した場合は確認。 | [FieldingEditor.tsx L34](aoba-training-log/src/FieldingEditor.tsx#L34)・[FieldingEditor.tsx L96](aoba-training-log/src/FieldingEditor.tsx#L96)・自動・Edge。候補確認のiPhone待ち |
+| 43 · DEV-004 | F | 材料のない送球によるPO・AとEの自動確定 | 利用者の一括開発指示で完全自動を退け、情報不足は手動。既存選択を維持。 | [FieldingEditor.tsx L207](aoba-training-log/src/FieldingEditor.tsx#L207)・決定の根拠とコード照合 |
+| 44 · DEV-004 | A | 走塁・守備の試合別／通算・守備位置別成績 | 未算出を区別し位置別は折りたたみ、旧育成観察も保持。 | [RunningFieldingStatsView.tsx](aoba-training-log/src/RunningFieldingStatsView.tsx)・[runningFieldingStats.ts L92](aoba-training-log/src/runningFieldingStats.ts#L92)・C-3B記録・自動試験 |
+| 45 · DEV-004 | A | 試合履歴の分野別配置・編集削除の分離 | 打撃・走塁・守備ごとに操作をまとめ、試合操作は別。 | [Records.tsx L241](aoba-training-log/src/Records.tsx#L241)・Edge 375/430 |
+| 46 · DEV-004 | A | 履歴の「メニューなしの試合」を改善 | 履歴見出しは日付・試合・対戦相手・同日番号。 | [Records.tsx L225](aoba-training-log/src/Records.tsx#L225)・統合ブラウザー試験 |
+| 47 · DEV-004 | A | 入力フォームの「メニューなし」と孤立時の案内 | 利用者承認により、試合で練習メニューが任意の選択肢を「練習メニューを選ばずに記録」へ変更。関連IDが残り該当する練習記録がない場合だけ「関連する練習記録がありません」と表示。単独試合には表示せず、関連IDを投影時に失った試合について経緯を断定しない。履歴見出しと操作・関連付けは維持。 | [入力選択肢](aoba-training-log/src/Records.tsx#L77)・[不在時の案内](aoba-training-log/src/Records.tsx#L240)・対象Edge回帰1件（単独・孤立・選択肢の表示条件） |
+| 48 · DEV-004 | B | 試合履歴の確定件数・下書き・簡易集計注記 | 最新の明示指示で現行維持。走塁は盗塁成否、打撃・守備は保存イベント。 | [recordHistory.ts L26](aoba-training-log/src/recordHistory.ts#L26)・[Records.tsx L241](aoba-training-log/src/Records.tsx#L241)・統合・recordHistory関連試験 |
+| 49 · DEV-004 | A | 所有者別の端末内保存／ゲスト明示コピー・孤立時保持 | 同じ所有者内で分離、同期対象を投影し、コピーと復元中断を保護。 | [localMatchStorage.ts L59](aoba-training-log/src/localMatchStorage.ts#L59)・[localMatchStorage.ts L190](aoba-training-log/src/localMatchStorage.ts#L190)・localMatchStorage.test.ts・Safari表示分離 |
+| 50 · DEV-004 | F | 試合詳細のクラウド送信 | 利用者が案Aを明示採用し送信禁止とした。基本同期はv2 RPC。 | [localMatchStorage.ts L59](aoba-training-log/src/localMatchStorage.ts#L59)・[snapshotApi.ts L46](aoba-training-log/src/snapshotApi.ts#L46)・隔離PostgRESTと拒否回帰 |
+| 51 · DEV-004 | A | 復元衝突の保護、3候補、退避、明示復旧 | 同期停止と復元ジャーナル。診断／通常JSONと現在データを保持して再開。 | [RestoreRecovery.tsx](aoba-training-log/src/RestoreRecovery.tsx)・[localMatchStorage.ts L132](aoba-training-log/src/localMatchStorage.ts#L132)・11/23 Safari退避・オフライン復旧・模擬同期 |
+| 52 · DEV-004 | G | チェック欄の操作理由・タップ領域 | 保存後の確認、候補再確認／再ログイン後に再保存を案内。無効条件を維持。 | [RestoreRecovery.tsx](aoba-training-log/src/RestoreRecovery.tsx)・Edge375 。実機の一時事象の直接原因は未確認 |
+| 53 · DEV-004 | A | 合成JSONのUTF-8添付ダウンロード | 検証配信だけ変更。通常アプリのバックアップ方式は維持。 | [DataManagement.tsx L19](aoba-training-log/src/DataManagement.tsx#L19)・11/23専用ページ保存成功・Edgeバイト一致記録 |
+| 54 · DEV-004 | E | iPhoneのホーム画面アイコンが「A」になる | HTMLのapple-touch-icon 180pxとmanifestの192／512px、画像の実在、PCの配信合格を確認。Private環境でのiOS取得・認証・キャッシュの影響は未確認。利用者の仕様判断は現時点で不要。公開前一括検証で候補の追加時アイコンを確認し、再現時に取得経路を調べる。今回変更なし。 | [HTML](aoba-training-log/index.html#L10)・[manifest](aoba-training-log/public/manifest.webmanifest)・11/23実機とPC配信記録 |
+| 55 · DEV-004 | G | PWA初回ログイン・JSON復元・オフライン保持 | 独立起動確認。Safariのログイン引継ぎなし。PWAでAログイン後の試合件数・復元・再起動・同期は未確認。 | [App.tsx L48](aoba-training-log/src/App.tsx#L48)・[localMatchStorage.ts](aoba-training-log/src/localMatchStorage.ts)・11/23 Safari／PWA記録、既存隔離PC |
+| 56 · DEV-004 | G | 物理版2・詳細v4・JSON v5と安全な切り戻し | 旧分離版を拒否し、低い版の置換を拒否、同版の内訳消失は退避と確認を要求。 | [localMatchStorage.ts L106](aoba-training-log/src/localMatchStorage.ts#L106)・[backup.ts L239](aoba-training-log/src/backup.ts#L239)・[DataManagement.tsx L220](aoba-training-log/src/DataManagement.tsx#L220)・4ビルドPC合格。iPhone同一PWA更新・切り戻し待ち |
+| 57 · DEV-005 | G | 予定の種類をアイコンで選択、保存／取消は別 | 登録済みの予定と参照を保持し、ホームは従来導線。 | [PlanDialog.tsx L67](aoba-training-log/src/PlanDialog.tsx#L67)・[Calendar.tsx L146](aoba-training-log/src/Calendar.tsx#L146)・Edge作成・編集・取消。iPhoneは基本カレンダーのみ既報 |
+| 58 · DEV-006 | A | 分類追加・改名・並べ替え、既存メニュー参照 | ブラウザーの分類設定に保存、設定と計画で使用。 | [CategoryManagement.tsx](aoba-training-log/src/CategoryManagement.tsx)・[Settings.tsx L36](aoba-training-log/src/Settings.tsx#L36)・menuCategories.test.tsx・Edge |
+| 59 · DEV-006 | A | 分類設定のJSON復元と旧JSONの保持 | 任意項目として取り込み、旧JSONでは現在の設定を保持。 | [backup.ts L155](aoba-training-log/src/backup.ts#L155)・backup.test.ts・Edge |
+| 60 · DEV-006 | E | カスタム分類別の成長集計・分類削除／非表示・クラウド同期の範囲 | 成長は記録時の固定分類、設定はブラウザー保存とJSON対応、分類削除／非表示なし。原要望・除外の明示承認は未確認。現行を維持し、原資料が確認できるか、利用者が改めて希望する場合に対象範囲を判断する。今回機能追加なし。 | [成長集計](aoba-training-log/src/Growth.tsx#L66)・[分類設定](aoba-training-log/src/CategoryManagement.tsx)・11/21設計と実装記録 |
+| 61 · DEV-007 | A | 計画と設定の分類・アイコン・順序を統一 | 既存登録メニューを同じ分類で選び、登録メニューの管理は設定側。 | [RoutineFields.tsx L18](aoba-training-log/src/RoutineFields.tsx#L18)・実機の分類選択・取消、Edge |
+| 62 · DEV-007 | G | 通常計画の折りたたみと重要操作へのアクセス | Excel確認だけでなく通常版で初期閉鎖。要約と開始日・保存・取消、開閉後の入力保持。 | [PlanManagement.tsx L119](aoba-training-log/src/PlanManagement.tsx#L119)・Edge複数種目。最新実機待ち |
+| 63 · DEV-007 | A | 計画の開始日・旧版・履歴・目標／ID保持 | 日付に応じた版、保存で新しい版を追加。 | [PlanManagement.tsx L64](aoba-training-log/src/PlanManagement.tsx#L64)・[routines.ts](aoba-training-log/src/routines.ts)・routines.test.ts・統合試験 |
+| 64 · DEV-007 | A | 選択解除・数量／目標・非表示／未分類の扱い維持 | 種目の除外と既存の候補選択・各編集欄を維持。 | [PlanManagement.tsx L142](aoba-training-log/src/PlanManagement.tsx#L142)・[RoutineFields.tsx L52](aoba-training-log/src/RoutineFields.tsx#L52)・routines.test.ts・PC分類 |
 
-進捗区分
-
-* 現行機能の一部操作検証：実施済み
-* 改善要望の整理：実施済み
-* 改善仕様の確定：一部未確定
-* 改善機能の実装：未着手
-* 改善後の再検証：未実施
-* 本番反映：未実施
-
-1. 打撃記録の改善
-
-改善要望
-
-* 投球結果に「ヒット」を設ける。
-* ヒットの種類は打席結果で単打・二塁打・三塁打・本塁打を選択する。
-* 打球性質（ゴロ・フライ・ライナー等）、打球方向、打席結果を適切に区別する。
-* 投球位置は9マス固定選択ではなく、3×3のガイドを残した任意位置タップ方式にする。
-* ストライクゾーン外への投球も記録できるようにする。
-* 投球位置に投球順と球種を表示し、編集後も整合させる。
-* ストレートの速い・遅いをマーク上で区別する必要はない。
-* 手入力の「球数（任意）」欄を削除する。
-* 打者シルエットの不自然な表示を改善する。
-
-未決定・要検討
-
-* 「打球」と「ヒット」の用語整理
-* 安打以外のアウト・失策などの入力方式
-* 旧9マス方式で保存したデータとの互換性
-* ゾーン外の入力可能範囲、重複表示、タップ精度
-* 球数の自動集計・表示方法
-
-2. 走塁記録の改善
-
-改善要望
-
-* 記録対象を二盗成功・二盗死・三盗成功・三盗死の4種類に簡素化する。
-* 通常進塁の詳細入力やダイヤモンド図など、今回の目的に不要な入力UIを整理する。
-* 盗塁成功・盗塁死の件数と成功率が整合するようにする。
-
-要調査
-
-* 盗塁成功1件・盗塁死0件、および盗塁成功0件・盗塁死1件のテスト時、成功率が「—」と表示された。
-* 件数自体は更新されていた。
-* 成功率の表示条件によるものか、不具合かは未判定。
-
-3. 守備記録の改善
-
-改善要望
-
-* イニングごとの一括記録ではなく、守備機会・プレーごとの記録を基本とする。
-* 各プレーに「○イニング目」と守備位置を記録する。
-* 守備位置は選択でき、同一試合内の複数ポジションに対応する。
-* 守備位置の変更だけを、打球機会のないイニングごとに入力させない。
-* プレー種類としてゴロ・ライナー・フライ・バント・打球なしを扱う。
-* 捕球、捕球エラー、送球エラーを区別する。
-* アウトにできたかを「アウト」「セーフ」で別途記録する。
-* 「打球なし」では不要なアウト・セーフ入力を求めない。
-* 刺殺（PO）・補殺（A）・失策（E）は存続させる。
-* アウト・セーフと公式記録上のPO・A・Eを混同しない。
-* プレーごとの育成観察欄は削除する。
-* 振り返りはプレー単位ではなく、1試合につき1回記録する。
-* 「第1位置」など意味が分かりにくい履歴表示を改善する。
-
-設計検討事項
-
-* 守備位置履歴とプレー履歴の統合方法
-* 「打球なし」と公式守備記録の関係
-* 捕球結果、送球結果、アウト結果、PO・A・Eの入力関係
-* 既存の守備データとの互換性
-
-4. 試合履歴画面の改善
-
-改善要望
-
-* 打撃・走塁・守備を分野ごとにまとめる。
-* 各分野の「記録する」「成績を見る」を近接配置する。
-* 試合全体の編集・削除は、各分野の記録操作から分離する。
-* 「メニューなしの試合」など不自然な表示を改善する。
-* iPhoneの画面幅で見やすく、操作しやすい構成にする。
-
-検討事項
-
-* 打席数・走塁件数・守備プレー件数の表示
-
-5. 2026-11-20 iPhone Safari検証結果
-
-検証環境
-
-* 試合記録の隔離検証環境
-* 検証ビルド識別子：iphone01
-* 端末内保存のテストデータ
-* 本番環境とは切り離した検証
-
-打撃
-
-* 保存・編集・削除を確認。
-* 編集・削除後の成績再集計を確認。
-* 単打2件から1件を二塁打へ編集した際、安打内訳・塁打数・長打率・OPSが整合した。
-* 二塁打を削除した後も再集計が整合した。
-* Safari再読み込み後の記録保持を確認。
-* 最終確認値：PA1、AB1、H1、1B1、TB1、AVG 1.000、OBP 1.000、SLG 1.000、OPS 2.000。
-
-走塁
-
-* 盗塁成功・盗塁死の保存、編集、削除と件数反映を確認。
-* 盗塁成功率の「—」表示は要調査。
-* 走塁記録を削除した後に検証を終了したため、走塁データのSafari再読み込み後の保持は未確認。
-
-守備
-
-* プレーの保存・編集・削除を確認。
-* PO・A・E・守備機会・守備率の再集計を確認。
-* Safari再読み込み後の記録保持を確認。
-* 最終確認値：PO0、A0、E1、TC1、FPCT .000。
-
-未検証・注意事項
-
-* 今回の結果は実際に操作したテストケースに限定する。
-* 全入力パターンや例外ケースの検証は未実施。
-* 別端末との同期、Safariサイトデータ削除後の復元は未確認。
-* ホーム画面追加後のPWA動作は未確認。
-* 本番環境での動作検証は未実施。
-* 今回整理した改善機能は未実装であり、改善後の動作検証は行っていない。
-
-6. 次工程
-
-1. 既存DEV-004と本追補の重複内容を整理する。
-2. 未決定事項の仕様を確定する。
-3. 画面設計・データ構造・集計ルール・例外ケース・合格基準を定義する。
-4. 開発ブランチで改善機能を実装する。
-5. 自動テストとiPhone実機検証を実施する。
-6. 検証結果を確認した後に、本番反映の可否を別途判断する。
-
-本追補の登録は、改善機能の実装完了や本番反映を意味しない。
+**今回の確定と残作業。** UI-06の削除仕様を承認済みに更新（C→B）。投球案内の表示を操作に合わせた（C→A）。P0の公開前安全確認は従来どおり。利用者承認を受け、項目31・47を修正しE→A。対象Vitest 36件、Edge 375pxの限定回帰1件、TypeScript型チェック合格。残りの項目54（PWAアイコン原因）・60（分類・成長の範囲）と既存の実機待ちは継続。今回、64件に対する新規実装・判定変更はなく、既知の公開範囲に追加必須の開発は特定されていない。原本未確認の70項目・11/20改善管理表から未実装件数は推定しない。

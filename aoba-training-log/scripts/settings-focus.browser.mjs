@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createServer as createHttpServer } from 'node:http'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { extname, join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createServer } from 'vite'
@@ -94,6 +95,11 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
   await server.listen()
   const origin = 'http://127.0.0.1:' + server.httpServer.address().port
   const { command, evaluate } = await openChrome(t)
+  async function capture(name, width) {
+    if (!process.env.AOBA_UI_SCREENSHOTS) return
+    const shot = await command('Page.captureScreenshot', { format: 'png' })
+    await writeFile(join(process.env.AOBA_UI_SCREENSHOTS, `${name}-${width}.png`), Buffer.from(shot.data, 'base64'), { flag: 'wx' })
+  }
   for (const width of [375, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: true })
     await command('Page.navigate', { url: origin + '/?width=' + width })
@@ -266,6 +272,7 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
         return box.left >= 0 && box.right <= innerWidth && box.height >= 44;
       })`), true)
       assert.equal(await evaluate("gauge().textContent.includes('日次達成率') && gauge().textContent.includes('—')"), true)
+      const dailyTone = await evaluate("getComputedStyle(gauge().querySelector('.gauge-period')).color")
       assert.equal(await evaluate("!!monthly().querySelector('progress')"), false)
       const center = await evaluate(`(() => {
         gauge().scrollIntoView({ block: 'center' });
@@ -275,11 +282,15 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
       await command('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] })
       await command('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
       await waitFor(() => evaluate("gauge().textContent.includes('週間達成率')"), 'weekly gauge')
+      const weeklyTone = await evaluate("getComputedStyle(gauge().querySelector('.gauge-period')).color")
       await evaluate('gauge().focus()')
       const space = { key: ' ', code: 'Space', windowsVirtualKeyCode: 32 }
       await command('Input.dispatchKeyEvent', { ...space, type: 'keyDown', text: ' ' })
       await command('Input.dispatchKeyEvent', { ...space, type: 'keyUp' })
       await waitFor(() => evaluate("gauge().getAttribute('aria-label').startsWith('月間達成率')"), 'monthly gauge')
+      const monthlyTone = await evaluate("getComputedStyle(gauge().querySelector('.gauge-period')).color")
+      assert.equal(new Set([dailyTone, weeklyTone, monthlyTone]).size, 3)
+      assert.equal(await evaluate("getComputedStyle(gauge().querySelector('.gauge-bezel')).stroke"), monthlyTone)
       await command('Input.dispatchKeyEvent', { ...space, type: 'keyDown', text: ' ' })
       await command('Input.dispatchKeyEvent', { ...space, type: 'keyUp' })
       await waitFor(() => evaluate("gauge().textContent.includes('日次達成率')"), 'daily gauge')
@@ -381,9 +392,19 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
         await click('計画を作る')
         await waitFor(() => evaluate("!!byLabel('種目を追加')"), 'plan editor')
         await click('種目を追加')
+        assert.equal(await evaluate("!document.querySelector('.import-draft-item').open"), true)
+        assert.equal(await evaluate("!!(byLabel('計画を保存').compareDocumentPosition(document.querySelector('.import-draft-item')) & Node.DOCUMENT_POSITION_FOLLOWING)"), true)
+        await evaluate("document.querySelector('.import-draft-item summary').click()")
         await waitFor(() => evaluate('groupNames().length === 6'), 'plan categories')
         assert.deepEqual(await evaluate('groupNames()'), ['守備', '打つ練習', '走塁', '体づくり', 'その他', '連携'])
         assert.equal(await evaluate(`document.querySelector('[data-menu-category="連携"]').textContent.includes('連携メニュー${width}')`), true)
+        await type('.import-draft-item textarea', '下書き' + width)
+        await click('種目を追加')
+        await waitFor(() => evaluate("document.querySelectorAll('.import-draft-item').length === 2"), 'second plan item')
+        await evaluate("document.querySelector('.import-draft-item summary').click()")
+        assert.equal(await evaluate("[...document.querySelectorAll('.import-draft-item')].every(item => !item.open)"), true)
+        await evaluate("document.querySelectorAll('.import-draft-item summary')[1].click(); document.querySelector('.import-draft-item summary').click()")
+        assert.equal(await evaluate("document.querySelector('.import-draft-item textarea').value"), '下書き' + width)
 
         await loadSettings('backup')
         await evaluate(`
@@ -421,10 +442,14 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
         const { createStorage } = await import('/src/storage.ts');
         const { localDate } = await import('/src/dates.ts');
         const { saveMatch } = await import('/src/matches.ts');
-        await createStorage().update(data => saveMatch(data, {
+        const { createLocalMatchStorage } = await import('/src/localMatchStorage.ts');
+        await createLocalMatchStorage('guest', createStorage()).update(data => {
+          const row = {
           date: localDate(new Date()), kind: '試合', menuId: '', amount: '', duration: '', note: '', rating: '',
           good: '', improve: '', opponent: ${JSON.stringify(label)}
-        }));
+          };
+          return saveMatch(saveMatch(data, row), { ...row, opponent: row.opponent + ' 別試合' });
+        });
       })()`)
       const query = '?match-integration=' + width
       await command('Page.navigate', { url: origin + '/' + query })
@@ -447,26 +472,66 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
         await evaluate(`(() => { const field = ${selector}; field.value = ${JSON.stringify(value)};
           field.dispatchEvent(new Event('change', { bubbles: true })); })()`)
       }
-      async function discipline(name) {
+      async function discipline(name, opponent = label) {
         const selector = `[...document.querySelectorAll('.match-history-entry')].find(row =>
-          row.querySelector('.entry-title')?.textContent.includes(${JSON.stringify(label)}))`
+          row.querySelector('.entry-title')?.textContent.split(' · ').includes('対 ' + ${JSON.stringify(opponent)}))`
         await waitFor(() => evaluate(`!!${selector}?.querySelector('button[aria-label$="${name}"]')`), name)
         await evaluate(`${selector}.querySelector('button[aria-label$="${name}"]').click()`)
       }
       await discipline('打撃を記録する')
       await click('打席を追加')
-      await click('ストライクゾーンとゾーン外で投球位置を指定')
+      await evaluate(`globalThis.chooseOutside = () => {
+        const grid = document.querySelector('button.strike-grid')
+        const box = grid.querySelector('.strike-guides').getBoundingClientRect()
+        grid.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, clientX: box.left + 18, clientY: box.top + 18 }))
+      }`)
+      await evaluate('chooseOutside()')
       await click('● ストレート')
-      await click('ヒット')
-      await waitFor(() => evaluate("document.querySelector('[aria-label=記録した投球]')?.textContent.includes('ヒット')"), 'pitch recorded on result tap')
+      await click('ボール')
+      await evaluate('chooseOutside()')
+      await click('● ストレート')
       assert.equal(await evaluate(`(() => {
         const box = document.querySelector('.strike-grid').getBoundingClientRect();
         return innerWidth === ${width} && box.left >= 0 && box.right <= innerWidth && box.height >= 44;
       })()`), true)
-      await click('② 打席内容')
+      await click('打球')
+      await waitFor(() => evaluate("document.body.textContent.includes('選択中の投球を打球として記録します')"), 'contact result panel')
+      await capture('contact-result', width)
       await select('打席結果', 'single')
       await click('球場図で打球位置を指定')
+      await evaluate("document.querySelector('textarea').focus()")
+      await command('Input.insertText', { text: '合成コメント' })
       await click('打席を確定')
+      await click('第1打席を編集')
+      await click('② 打席内容')
+      await select('打席結果', 'double')
+      await click('打席を確定')
+      await click('打席を追加')
+      await click('② 打席内容')
+      await select('打席結果', 'walk')
+      await click('打席を確定')
+      await click('練習履歴へ戻る')
+      await discipline('打席を振り返る', label + ' 別試合')
+      await waitFor(() => evaluate("document.body.textContent.includes('打席はまだありません。')"), 'separate same-day game')
+      await click('練習履歴へ戻る')
+      await discipline('打席を振り返る')
+      await waitFor(() => evaluate("document.body.textContent.includes('打席結果 二塁打')"), 'review shows saved result')
+      assert.equal(await evaluate("!!document.querySelector('div.strike-grid [data-pitch-order]') && !document.querySelector('button.strike-grid')"), true)
+      assert.equal(await evaluate("document.querySelector('div.strike-grid .zone-anchors line') !== null"), true)
+      await click('打球記録')
+      assert.equal(await evaluate("!!document.querySelector('div.ball-field svg circle') && !document.querySelector('button.ball-field')"), true)
+      assert.equal(await evaluate("document.body.textContent.includes('合成コメント')"), true)
+      const firstPlate = await evaluate("matchField('打席を選ぶ').options[0].value")
+      const nextPlate = await evaluate("matchField('打席を選ぶ').options[1].value")
+      await select('打席を選ぶ', nextPlate)
+      assert.equal(await evaluate("document.body.textContent.includes('打席結果 四球') && document.body.textContent.includes('打球記録なし') && !document.body.textContent.includes('合成コメント')"), true)
+      await select('打席を選ぶ', firstPlate)
+      await click('第1打席を編集')
+      await click('② 打席内容')
+      await select('打席結果', 'reachedOnError')
+      await click('打席を確定')
+      await waitFor(() => evaluate("document.body.textContent.includes('打席結果 失策出塁') && !!document.querySelector('div.ball-field')"), 'save returns to review')
+      await capture('plate-review', width)
       await click('第1打席を編集')
       await click('② 打席内容')
       await select('打席結果', 'double')
@@ -494,17 +559,27 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
       await evaluate("matchField('イニング').focus()")
       await command('Input.insertText', { text: '2' })
       await select('守備位置', 'C')
+      await select('プレー種類', 'fly')
+      await select('捕球結果', 'success')
+      await select('アウト・セーフ', 'out')
+      assert.equal(await evaluate("document.body.textContent.includes('候補：PO（刺殺）') && matchButton('公式記録未入力').getAttribute('aria-pressed') === 'true'"), true)
+      await evaluate("matchButton('PO（刺殺）').scrollIntoView({block:'center'})")
+      await capture('fielding-suggestion', width)
       await select('プレー種類', 'noBall')
       await click('PO（刺殺）')
       await click('守備プレーを確定')
       await waitFor(() => evaluate("document.body.textContent.includes('2イニング目 · 捕手 · 打球なし')"), 'fielding play saved')
       const details = await evaluate(`(async () => {
         const { createStorage } = await import('/src/storage.ts');
-        const match = (await createStorage().read()).matches.find(row => row.details?.opponent === ${JSON.stringify(label)});
+        const { createLocalMatchStorage } = await import('/src/localMatchStorage.ts');
+        const match = (await createLocalMatchStorage('guest', createStorage()).read()).matches.find(row => row.details?.opponent === ${JSON.stringify(label)});
         return match.details;
       })()`)
       assert.equal(details.plateAppearances[0].result, 'double')
-      assert.equal(details.plateAppearances[0].pitches[0].result, 'hit')
+      assert.equal(details.plateAppearances[0].pitches[0].result, 'ball')
+      assert.equal(details.plateAppearances[0].pitches[1].result, 'hit')
+      assert.deepEqual(details.plateAppearances[0].pitches[0].location, details.plateAppearances[0].pitches[1].location)
+      assert.ok(details.plateAppearances[0].pitches[0].location.x < 0.2)
       assert.equal(details.baserunning.length, 0)
       assert.deepEqual(details.fielding[0].credits, ['putout'])
       await click('練習履歴へ戻る')
@@ -529,12 +604,13 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
   await t.test('別のChromeプロファイルへ現行JSONを復元する', async migration => {
     await evaluate(`(async () => {
       const { createStorage } = await import('/src/storage.ts');
+      const { createLocalMatchStorage } = await import('/src/localMatchStorage.ts');
       const { localDate, monthDates } = await import('/src/dates.ts');
       const { saveRoutine } = await import('/src/routines.ts');
       const { assignMenuCategory, defaultCategorySettings, saveCategory, writeCategorySettings } = await import('/src/menuCategories.ts');
       const { saveMonthlyGoal } = await import('/src/monthlyGoals.ts');
       const now = new Date();
-      const data = await createStorage().update(current => saveRoutine(current, {
+      const { data } = await createLocalMatchStorage('guest', createStorage()).update(current => saveRoutine(current, {
         id: 'migration-plan', startsOn: localDate(now), items: [{
           id: 'migration-item', menuId: 'swing', name: '素振り', schedule: 'daily', weekdays: [],
           note: '', condition: '', mode: 'quantity', recordUnit: '回', target: { amount: 10, unit: '回' }
@@ -565,11 +641,12 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
     await waitFor(() => target.evaluate("!!document.querySelector('nav button:not(:disabled)')"), 'fresh recipient')
     const empty = await target.evaluate(`(async () => {
       const { createStorage } = await import('/src/storage.ts');
+      const { createLocalMatchStorage } = await import('/src/localMatchStorage.ts');
       const { readCategorySettings } = await import('/src/menuCategories.ts');
       const { readMonthlyGoals } = await import('/src/monthlyGoals.ts');
       globalThis.migrationButton = label => [...document.querySelectorAll('button')].find(button => button.textContent.trim() === label);
       globalThis.migrationState = async () => ({
-        data: await createStorage().read(), menuCategories: readCategorySettings(localStorage), monthlyGoals: readMonthlyGoals(localStorage)
+        data: await createLocalMatchStorage('guest', createStorage()).read(), menuCategories: readCategorySettings(localStorage), monthlyGoals: readMonthlyGoals(localStorage)
       });
       const { data, menuCategories, monthlyGoals } = await migrationState();
       migrationButton('設定').click();
@@ -593,3 +670,251 @@ test('Settings, calendar plans, home progress and migration in Chrome', { timeou
       { data: source.data, menuCategories: source.menuCategories, monthlyGoals: source.monthlyGoals })
   })
 })
+
+test('旧座標と試合の関連付け案内を個別振り返りで確認する', { timeout: 60_000 }, async t => {
+  const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' })
+  t.after(() => server.close())
+  await server.listen()
+  const origin = 'http://127.0.0.1:' + server.httpServer.address().port
+  const { command, evaluate } = await openChrome(t)
+  await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: true })
+  await command('Page.navigate', { url: origin + '/' })
+  await waitFor(() => evaluate("!!document.querySelector('nav button:not(:disabled)')"), 'app ready')
+  const before = await evaluate(`(async () => {
+    const { createStorage } = await import('/src/storage.ts');
+    const { createLocalMatchStorage } = await import('/src/localMatchStorage.ts');
+    const { battedBallDistribution } = await import('/src/battedBallDistribution.ts');
+    const base = createStorage();
+    const local = createLocalMatchStorage('guest', base);
+    const time = '2026-11-20T00:00:00.000Z';
+    const game = { date: '2026-11-20', createdAt: time, updatedAt: time, good: '', improve: '' };
+    const location = { x: 0.3, y: 0.4 };
+    const results = ['single', 'walk', 'strikeoutSwinging', 'otherOut', undefined, 'hitByPitch', 'droppedThirdStrike', 'strikeoutLooking'];
+    const plateAppearances = results.map((result, index) => ({
+      id: 'plate-' + index, order: index + 1, result, status: result ? 'complete' : 'draft', fieldPoint: location,
+      ...(index === 1 && { pitches: [{ id: 'pitch-1', order: 1, type: { id: 'fastball', name: 'ストレート' },
+        result: 'ball', location: { zone: 'inside', row: 0, column: 0 } }] })
+    }));
+    const details = { version: 1, source: { batting: 'events', fielding: 'events', baserunning: 'events' },
+      plateAppearances, baserunning: [], positionChanges: [], fielding: [] };
+    await local.update(data => ({ ...data, matches: [
+      { ...game, id: 'standalone', details: { ...details, opponent: '合成単独' } },
+      { ...game, id: 'same-day', details: { ...details, opponent: '合成別試合', plateAppearances: [] } }
+    ] }));
+    await base.update(data => ({ ...data, matches: [
+      ...(data.matches ?? []), { ...game, id: 'orphan', recordId: 'missing-record', good: '合成孤立記録' }
+    ] }));
+    globalThis.readReviewFixture = async () => {
+      const matches = (await local.read()).matches;
+      return { matches, distribution: battedBallDistribution(matches) };
+    };
+    return readReviewFixture();
+  })()`)
+  assert.equal(before.distribution.hits.length, 1)
+  assert.equal(before.distribution.missingPositions, 0)
+  // Re-enter Records to read the newly seeded data through the normal UI.
+  await command('Page.reload')
+  await waitFor(() => evaluate("!!document.querySelector('nav button:not(:disabled)')"), 'reloaded fixture')
+  await evaluate(`
+    globalThis.reviewButton = (label, scope = document) => [...scope.querySelectorAll('button')].find(button =>
+      button.textContent.trim() === label);
+    globalThis.reviewRow = text => [...document.querySelectorAll('.match-history-entry')].find(row => row.textContent.includes(text));
+    reviewButton('記録').click();
+  `)
+  const missingNotice = '関連する練習記録がありません'
+  await waitFor(() => evaluate("!!reviewRow('合成孤立記録')"), 'history fixture')
+  assert.deepEqual(await evaluate(`['合成単独', '合成別試合', '合成孤立記録'].map(text =>
+    reviewRow(text).textContent.includes('${missingNotice}'))`), [false, false, true])
+  await evaluate("reviewButton('詳細を入力').click()")
+  assert.equal(await evaluate("!!Array.from(document.querySelectorAll('option')).find(option => option.textContent === '選んでください')"), true)
+  await evaluate(`(() => {
+    const field = [...document.querySelectorAll('label')].find(label => label.firstChild?.textContent === '練習の種類').querySelector('select');
+    field.value = '試合'; field.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`)
+  await waitFor(() => evaluate("[...document.querySelectorAll('option')].some(option => option.textContent === '練習メニューを選ばずに記録' && option.value === '')"), 'optional match menu')
+  await evaluate("reviewButton('キャンセル').click()")
+  await waitFor(() => evaluate("!!reviewButton('打席を振り返る', reviewRow('合成別試合'))"), 'history after cancel')
+  await evaluate("reviewButton('打席を振り返る', reviewRow('合成別試合')).click()")
+  await waitFor(() => evaluate("document.body.textContent.includes('打席はまだありません。')"), 'same-day different game')
+  await evaluate("reviewButton('練習履歴へ戻る').click()")
+  await waitFor(() => evaluate("!!reviewRow('合成単独')"), 'history after review')
+  await evaluate("reviewButton('打席を振り返る', reviewRow('合成単独')).click()")
+  await waitFor(() => evaluate("!!reviewButton('打球記録')"), 'selected game')
+  await evaluate("reviewButton('打球記録').click()")
+  for (const [index, marker] of [true, false, false, true, true, false, false, false].entries()) {
+    await evaluate(`(() => {
+      const field = document.querySelector('select');
+      field.value = 'plate-${index}'; field.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`)
+    await waitFor(() => evaluate(`document.querySelector('select').value === 'plate-${index}' &&
+      (!!document.querySelector('.ball-field svg g > circle')) === ${marker} &&
+      document.querySelector('.batting-diagram [role=status]').textContent.includes('${marker ? '記録位置' : '打球記録なし'}')`), 'review marker for plate ' + index)
+  }
+  await evaluate(`(() => { const field = document.querySelector('select'); field.value = 'plate-1';
+    field.dispatchEvent(new Event('change', { bubbles: true })); reviewButton('投球コース').click(); })()`)
+  await waitFor(() => evaluate("!!document.querySelector('.strike-grid [data-pitch-order]')"), 'walk pitch remains visible')
+  const after = await evaluate(`(async () => {
+    const { createStorage } = await import('/src/storage.ts');
+    const { createLocalMatchStorage } = await import('/src/localMatchStorage.ts');
+    const { battedBallDistribution } = await import('/src/battedBallDistribution.ts');
+    const matches = (await createLocalMatchStorage('guest', createStorage()).read()).matches;
+    return { matches, distribution: battedBallDistribution(matches) };
+  })()`)
+  assert.deepEqual(after, before)
+})
+
+test('試合専用DBの物理版とバックアップの互換性を4つのビルドで確認する',
+  { skip: !process.env.AOBA_COMPAT_BUILDS, timeout: 95_000 }, async t => {
+    const root = process.env.AOBA_COMPAT_BUILDS
+    const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
+      '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml' }
+    const server = createHttpServer(async (request, response) => {
+      const [, variant, asset = ''] = /^\/(public|split|new|rollback)\/([a-zA-Z0-9_.\/-]*)$/.exec(request.url ?? '') ?? []
+      if (!variant || asset.split('/').some(part => part === '..')) { response.writeHead(404).end(); return }
+      const file = asset || 'index.html'
+      try {
+        const body = await readFile(join(root, variant, file))
+        response.writeHead(200, { 'Content-Type': mime[extname(file)] ?? 'application/octet-stream' }).end(body)
+      } catch { response.writeHead(404).end() }
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    t.after(() => new Promise(resolve => server.close(resolve)))
+    const origin = 'http://127.0.0.1:' + server.address().port
+    const { command, evaluate } = await openChrome(t)
+    async function navigate(variant) {
+      await command('Page.navigate', { url: origin + '/' + variant + '/' })
+      await waitFor(() => evaluate(`location.pathname === '/${variant}/' && !!document.querySelector('main')`), variant)
+      await evaluate(`globalThis.btn = label => [...document.querySelectorAll('button')].find(b =>
+        b.textContent.trim() === label || (b.getAttribute('aria-label') ?? '').endsWith(label));
+        window.showSaveFilePicker = async () => ({createWritable: async () => ({
+          write: async contents => { window.saved = contents }, close: async () => {}
+        })});
+        globalThis.openDb = version => new Promise((resolve, reject) => {
+          const request = indexedDB.open('aoba-training-log-local-matches', version);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });`)
+    }
+    async function click(label) {
+      const button = `btn(${JSON.stringify(label)})`
+      await waitFor(() => evaluate(`!!${button} && !${button}.disabled`), label)
+      await evaluate(`${button}.click()`)
+    }
+    async function dataManagement() {
+      await click('設定')
+      await click('バックアップ・復元')
+    }
+    async function select(label, value) {
+      await evaluate(`(() => {
+        const field = [...document.querySelectorAll('label')].find(element =>
+          element.firstChild?.textContent.trim() === ${JSON.stringify(label)}).querySelector('select');
+        field.value = ${JSON.stringify(value)}; field.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+    }
+    async function importFile(json) {
+      await evaluate(`(() => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([${JSON.stringify(json)}], 'synthetic.json', { type: 'application/json' }));
+        const input = document.querySelector('input[type=file]');
+        input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+    }
+    async function exportFile() {
+      await evaluate('window.saved = undefined')
+      await click('バックアップを保存')
+      await waitFor(() => evaluate('!!window.saved'), 'backup file written')
+      return JSON.parse(await evaluate('window.saved'))
+    }
+    await navigate('public')
+    await dataManagement()
+    const base = await exportFile()
+    assert.equal(base.backupVersion, 1)
+    base.data.rests.push({ date: '2026-11-20', createdAt: '2026-11-20T00:00:00.000Z' })
+    await importFile(JSON.stringify(base))
+    await click('全データを置き換えて復元')
+    await waitFor(() => evaluate("document.body.textContent.includes('バックアップから復元しました。')"), 'public base save')
+
+    await navigate('split')
+    await dataManagement()
+    const old = await exportFile()
+    assert.equal(await evaluate('(async () => { const db = await openDb(1); const version = db.version; db.close(); return version })()'), 1)
+    const now = '2026-11-20T00:00:00.000Z'
+    old.backupVersion = 2
+    old.data.matches = [{ id: 'test-game', date: '2026-11-20', good: '', improve: '', createdAt: now, updatedAt: now,
+      details: { version: 1, opponent: '合成クラブ', source: { batting: 'events', baserunning: 'events', fielding: 'events' },
+        plateAppearances: [{ id: 'test-plate', order: 1, status: 'complete', result: 'droppedThirdStrike' }],
+        baserunning: [], positionChanges: [], fielding: [] } }]
+    await importFile(JSON.stringify(old))
+    await click('全データを置き換えて復元')
+    await waitFor(() => evaluate("document.body.textContent.includes('バックアップから復元しました。')"), 'split details save')
+
+    // The new application starts in an iframe while the parent holds version 1.
+    await evaluate(`(() => { const frame = document.createElement('iframe'); frame.name = 'aoba-upgrade-holder'; document.body.append(frame); })()`)
+    // A top-level navigation would close the iframe, so navigate the new app in it.
+    await evaluate(`(async () => { window.oldConnection = await openDb(1); document.querySelector('iframe').src = '${origin}/new/'; })()`)
+    await waitFor(() => evaluate(`document.querySelector('iframe').contentDocument?.body?.textContent.includes('ほかのタブが試合データを使用しています')`), 'blocked upgrade notice')
+    await evaluate('oldConnection.close()')
+    await waitFor(() => evaluate(`!!document.querySelector('iframe').contentDocument?.querySelector('nav button:not(:disabled)')`), 'upgrade completed')
+    assert.equal(await evaluate('(async () => { try { (await openDb(1)).close(); return "opened" } catch (error) { return error.name } })()'), 'VersionError')
+    await navigate('new')
+    await click('記録')
+    await click('打撃を記録する')
+    await click('第1打席を編集')
+    await click('② 打席内容')
+    await select('振り逃げの内訳', 'swinging')
+    await click('打席を確定')
+    await click('第1打席を編集')
+    await click('② 打席内容')
+    await select('振り逃げの内訳', 'looking')
+    await click('打席を確定')
+    await dataManagement()
+    const current = await exportFile()
+    assert.equal(current.backupVersion, 5)
+    assert.equal(current.data.matches[0].details.plateAppearances[0].droppedThirdStrikeKind, 'looking')
+    assert.deepEqual(current.data.rests, base.data.rests)
+    await importFile(JSON.stringify(old))
+    await waitFor(() => evaluate("document.body.textContent.includes('振り逃げの内訳 1件')"), 'legacy replacement preview')
+    assert.equal(await evaluate("document.querySelector('.restore-preview input[type=checkbox]').disabled"), true)
+    await exportFile()
+    await evaluate("document.querySelector('.restore-preview input[type=checkbox]').click()")
+    await click('全データを置き換えて復元')
+    await waitFor(() => evaluate("document.body.textContent.includes('古い形式で上書きできません')"), 'legacy replacement refused')
+
+    const sameVersion = structuredClone(current)
+    sameVersion.data.matches[0].details.plateAppearances[0].droppedThirdStrikeKind = 'swinging'
+    await importFile(JSON.stringify(sameVersion))
+    await waitFor(() => evaluate("document.body.textContent.includes('振り逃げの内訳 1件')"), 'v5 replacement preview')
+    assert.equal(await evaluate("btn('全データを置き換えて復元').disabled"), true)
+    await exportFile()
+    await evaluate("document.querySelector('.restore-preview input[type=checkbox]').click()")
+    await click('全データを置き換えて復元')
+    await waitFor(() => evaluate("document.body.textContent.includes('バックアップから復元しました。')"), 'file and consent permit v5 replacement')
+    assert.equal((await exportFile()).data.matches[0].details.plateAppearances[0].droppedThirdStrikeKind, 'swinging')
+
+    await navigate('split')
+    await waitFor(() => evaluate("document.body.textContent.includes('データを読み込めませんでした')"), 'actual legacy split build fails closed')
+    await navigate('public')
+    await dataManagement()
+    await importFile(JSON.stringify(current))
+    await waitFor(() => evaluate("document.body.textContent.includes('対応していません')"), 'actual public build rejects v5')
+    base.data.rests.push({ date: '2026-11-21', createdAt: '2026-11-21T00:00:00.000Z' })
+    await importFile(JSON.stringify(base))
+    await click('全データを置き換えて復元')
+    await waitFor(() => evaluate("document.body.textContent.includes('バックアップから復元しました。')"), 'public version can write base only')
+
+    await navigate('rollback')
+    await click('記録')
+    await click('打撃を記録する')
+    assert.equal(await evaluate("btn('第1打席を削除').disabled"), true)
+    await click('第1打席を編集')
+    await waitFor(() => evaluate("document.body.textContent.includes('読み取り専用で扱います')"), 'rollback classified plate guard')
+    await dataManagement()
+    await importFile(JSON.stringify(base))
+    await click('試合詳細を保持して復元')
+    await waitFor(() => evaluate("document.body.textContent.includes('バックアップから復元しました。')"), 'rollback v1 import keeps local detail')
+    const after = await exportFile()
+    assert.equal(after.backupVersion, 5)
+    assert.deepEqual(after.data.matches, sameVersion.data.matches)
+    assert.deepEqual(after.data.rests, base.data.rests)
+  })

@@ -119,6 +119,11 @@ export default function PlanManagement({ data, commit, back, read }: {
       <fieldset className="fields editor" disabled={busy}>
         {confirmingImport && <strong>取り込み予定：{draft.items.length}種目</strong>}
         <label>適用開始日<input type="date" min={today} value={draft.startsOn} onChange={event => setDraft({ ...draft, startsOn: event.target.value })} /></label>
+        {!confirmingImport && <div className="form-actions">
+          <button type="button" className="action filled" onClick={save}>計画を保存</button>
+          <button type="button" className="action" onClick={cancelDraft}>キャンセル</button>
+        </div>}
+        {!confirmingImport && error && <p role="alert" className="error">{error}</p>}
         {confirmingImport && <>
           <p className="hint">指定日から使う計画を登録します。過去の計画、練習記録、目標履歴は保持されます。</p>
           <div className="form-actions">
@@ -138,7 +143,7 @@ export default function PlanManagement({ data, commit, back, read }: {
               change={next => setDraft({ ...draft, items: draft.items.map((old, i) => i === index ? next : old) })} />
             <button type="button" className="action edit-menu" onClick={() => setDraft({ ...draft, items: draft.items.filter(old => old.id !== item.id) })}>この種目を除外</button>
           </>
-          return confirmingImport ? <details key={item.id} className="excel-preview-group import-draft-item">
+          return <details key={item.id} className="excel-preview-group import-draft-item">
             <summary>
               <strong>{item.name || '新しい種目'}</strong>
               <span className="excel-preview-meta">{[item.group, scheduleLabel(item), item.condition,
@@ -146,19 +151,14 @@ export default function PlanManagement({ data, commit, back, read }: {
                 item.target && item.target.amount + item.target.unit].filter(Boolean).join(' · ')}</span>
             </summary>
             <div className="routine-item">{fields}</div>
-          </details> : <div key={item.id} className="routine-item">{fields}</div>
+          </details>
         })}
         <button type="button" className="action" onClick={() => setDraft({ ...draft, items: [...draft.items, {
           id: crypto.randomUUID(), name: '', schedule: 'weekdays', weekdays: [], note: '', condition: '',
         }] })}>種目を追加</button>
         {confirmingImport && <details><summary>新しい記録メニューを候補に追加</summary>
           <NewPlanMenu add={menu => setPendingMenus([...pendingMenus, { ...menu, id: crypto.randomUUID() }])} /></details>}
-        {!confirmingImport && <div className="form-actions">
-          <button type="button" className="action filled" onClick={save}>計画を保存</button>
-          <button type="button" className="action" onClick={cancelDraft}>キャンセル</button>
-        </div>}
       </fieldset>
-      {!confirmingImport && error && <p role="alert" className="error">{error}</p>}
     </section>}
     <section className="card">
       <h2>計画の履歴・適用予定</h2>

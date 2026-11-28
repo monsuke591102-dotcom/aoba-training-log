@@ -2,6 +2,19 @@ name: Deploy AOBA TRAINING LOG to GitHub Pages
 
 on:
   workflow_dispatch:
+    inputs:
+      release_mode:
+        description: 'Build mode for the pinned release commit'
+        required: true
+        default: enabled
+        type: choice
+        options:
+          - enabled
+          - compatibility
+      expected_sha:
+        description: 'Full SHA of the approved release commit'
+        required: true
+        type: string
 
 concurrency:
   group: github-pages
@@ -20,6 +33,17 @@ jobs:
       run:
         working-directory: aoba-training-log
     steps:
+      - name: Verify approved commit and build mode
+        shell: bash
+        working-directory: .
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RELEASE_MODE: ${{ inputs.release_mode }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_SHA" == "$GITHUB_SHA" ]]
+          [[ "$RELEASE_MODE" == enabled || "$RELEASE_MODE" == compatibility ]]
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
@@ -33,6 +57,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
         env:
+          VITE_STRIKEOUT_CLASSIFICATION: ${{ inputs.release_mode }}
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}

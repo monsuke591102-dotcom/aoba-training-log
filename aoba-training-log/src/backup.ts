@@ -189,6 +189,14 @@ export function decodeBackup(text: string): Backup {
     ...(monthlyGoals === undefined ? {} : { monthlyGoals }), ...(menuCategories === undefined ? {} : { menuCategories }) }
 }
 
+export function backupMatchesRestoreSnapshot(
+  backup: Backup, data: TrainingData, monthlyGoals: MonthlyGoal[], menuCategories: CategorySettings,
+): boolean {
+  return JSON.stringify(backup.data) === JSON.stringify(data) &&
+    JSON.stringify(backup.monthlyGoals) === JSON.stringify(monthlyGoals) &&
+    JSON.stringify(backup.menuCategories) === JSON.stringify(menuCategories)
+}
+
 const backupCountItems = [
   ['records', '練習記録'], ['matches', '試合・試合の振り返り'], ['plans', '練習予定'], ['goals', '目標・変更履歴'],
   ['reflections', '振り返り'], ['skippedMenus', '見送り'], ['rests', '休養日の記録'],

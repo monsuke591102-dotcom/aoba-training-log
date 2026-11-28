@@ -187,7 +187,7 @@ function TrainingApp({ session, page, setPage }: { session: Session | null; page
           <PlanManagement data={data} commit={commit} back={() => navigate('設定')} read={storage.read} />
         </Suspense>}
         {page === 'クラウド' && <CloudAccount back={() => navigate('設定')} session={session} sync={storage.sync} />}
-        {page === 'データ管理' && <DataManagement back={() => navigate('設定')} restore={restore} read={storage.read}
+        {page === 'データ管理' && <DataManagement key={session ? 'account:' + session.user.id : 'guest'} back={() => navigate('設定')} restore={restore} read={storage.read}
           owner={session ? session.user.email ?? 'アカウント ' + session.user.id : 'ゲスト'} preserveLocalDetails={storage.separatesMatches}
           readGuestMatches={storage.readGuestMatches} copyGuestMatches={storage.copyGuestMatches} />}
         {page === 'カレンダー' && <Calendar data={data} commit={commit} initialDate={calendarDate} onRecord={record}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { ChevronLeft, Database } from 'lucide-react'
-import { BackupError, backupRestoreData, compareBackupCounts, decodeBackup, encodeBackup, replacedStrikeoutDetails, replacesMatches, restoreBackup, restoreChange, type Backup } from './backup'
+import { BackupError, backupMatchesRestoreSnapshot, backupRestoreData, compareBackupCounts, decodeBackup, encodeBackup, replacedStrikeoutDetails, replacesMatches, restoreBackup, restoreChange, type Backup } from './backup'
 import { localDate } from './dates'
 import type { MatchEntry, TrainingData } from './model'
 import { readCategorySettings, type CategorySettings } from './menuCategories'
@@ -59,6 +59,7 @@ export function DataManagement({ back, restore, read, owner = 'ゲスト', prese
   const preserving = preserveLocalDetails && preview?.backup.backupVersion === 1 &&
     preview.current.matches?.some(row => row.details || !row.recordId)
   const input = useRef<HTMLInputElement>(null)
+  const savedBackupInput = useRef<HTMLInputElement>(null)
   const previewHeading = useRef<HTMLHeadingElement>(null)
   const active = useRef(false)
 
@@ -143,11 +144,48 @@ export function DataManagement({ back, restore, read, owner = 'ゲスト', prese
     }
   }
 
+  async function verifySavedBackup(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !preview || !strikeoutRisk) return
+    setBusy(true)
+    setError('')
+    setStatus('')
+    setBackupConfirmed(false)
+    setSavedRecoverySnapshot('')
+    try {
+      const backup = decodeBackup(await file.text())
+      const current = await read()
+      if (!active.current) return
+      const goals = readMonthlyGoals(window.localStorage)
+      const categories = readCategorySettings(window.localStorage)
+      if (!backupMatchesRestoreSnapshot(backup, preview.current, preview.monthlyGoals, preview.categories) ||
+        !backupMatchesRestoreSnapshot(backup, current, goals, categories)) {
+        throw new BackupError('保存したファイルが現在の復元先のデータと一致しません。復元内容と退避ファイルを確認してください。')
+      }
+      setSavedRecoverySnapshot(JSON.stringify(current))
+      setStatus('退避ファイルを確認しました。復元内容と保存先を確認し、確認欄にチェックしてください。')
+    } catch (error) {
+      if (active.current) setError(error instanceof BackupError ? error.message : '退避ファイルを読み込めませんでした。')
+    } finally {
+      if (active.current) setBusy(false)
+    }
+  }
+
   async function confirmRestore() {
     if (!preview || restoreBlocked) return
     setBusy(true)
     setError('')
     try {
+      if (strikeoutRisk) {
+        const current = await read()
+        if (!active.current) return
+        if (JSON.stringify(current) !== savedRecoverySnapshot ||
+          JSON.stringify(readMonthlyGoals(window.localStorage)) !== JSON.stringify(preview.monthlyGoals) ||
+          JSON.stringify(readCategorySettings(window.localStorage)) !== JSON.stringify(preview.categories)) {
+          throw new BackupError('確認後に現在のデータが変更されました。復元するファイルを選び直してください。')
+        }
+      }
       if (preserveLocalDetails) {
         await restore(restoreChange(preview.backup, preview.current, true, strikeoutRisk && savedCurrentPreview && backupConfirmed), {
           goals: preview.backup.monthlyGoals && { before: preview.monthlyGoals, after: preview.backup.monthlyGoals },
@@ -174,6 +212,7 @@ export function DataManagement({ back, restore, read, owner = 'ゲスト', prese
       <p className="hint">記録は基本的にこの端末・ブラウザに保存されます。アプリを削除したり、ブラウザのデータを消去したりすると、記録が失われる場合があります。</p>
       <p className="hint">定期的にバックアップを作成し、JSONファイルはご自身で安全な場所に保管してください。</p>
       <p className="hint">試合詳細はアプリ内に保存され、別端末には自動同期されません。Safariとホーム画面のアプリで保存領域が分かれる場合があります。</p>
+      <p className="hint">保存後に復元確認が閉じた場合は、同じアカウントで復元するファイルを選び直してください。振り逃げの内訳が変わる復元では「保存済みの退避ファイルを確認」から、すでに保存したファイルを照合できます。</p>
       <div className="form-actions">
         <button className="action filled" disabled={busy} onClick={saveBackup}>バックアップを保存</button>
         <button className="action" disabled={busy} onClick={() => input.current?.click()}>バックアップから復元</button>
@@ -235,7 +274,9 @@ export function DataManagement({ back, restore, read, owner = 'ゲスト', prese
           <ul className="compact-list">{strikeoutReplacements.map(row => <li key={row.matchId + ':' + row.plateId}>
             {row.date} {row.opponent} · 試合ID {row.matchId} · 第{row.order}打席 · {row.kind === 'swinging' ? '空振り' : '見逃し'}
           </li>)}</ul>
-          {!savedCurrentPreview && <p className="hint">この確認を開いた状態で現在のバックアップを保存すると、確認欄が有効になります。</p>}
+          {!savedCurrentPreview && <p className="hint">現在のバックアップを保存するか、保存済みの退避ファイルを確認すると、確認欄が有効になります。</p>}
+          <button className="action" disabled={busy} onClick={() => savedBackupInput.current?.click()}>保存済みの退避ファイルを確認</button>
+          <input ref={savedBackupInput} type="file" accept=".json,application/json" hidden onChange={verifySavedBackup} />
         </>}
         <label className="checkbox"><input type="checkbox" checked={backupConfirmed} disabled={busy || (strikeoutRisk && !savedCurrentPreview)}
           onChange={event => setBackupConfirmed(event.target.checked)} />現在のバックアップファイルを保存したことを確認しました</label>

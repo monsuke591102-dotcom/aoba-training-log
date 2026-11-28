@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { encodeBackup } from './backup'
 import { downloadBackup } from './DataManagement'
 import type { RestoreReview } from './localMatchStorage'
@@ -16,6 +16,15 @@ function details(data: TrainingData) {
   return { matches, updatedAt }
 }
 
+function diagnostic(review: RestoreReview) {
+  const { id, detectedAt, before, current, proposed, base } = review
+  return { format: 'aoba-restore-diagnostic', version: 1, id, detectedAt, before, current, proposed, base }
+}
+
+function reviewKey(review: RestoreReview) {
+  return JSON.stringify([review.id, review.basis])
+}
+
 export function RestoreRecovery({ owner, inspect, resume, reload, logout }: {
   owner: string
   inspect: () => Promise<RestoreReview | undefined>
@@ -24,11 +33,15 @@ export function RestoreRecovery({ owner, inspect, resume, reload, logout }: {
   logout?: () => Promise<void>
 }) {
   const [review, setReview] = useState<RestoreReview>()
-  const [saved, setSaved] = useState(false)
-  const [exported, setExported] = useState(false)
+  const [confirmedKey, setConfirmedKey] = useState('')
+  const [exportedKey, setExportedKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const savedFile = useRef<HTMLInputElement>(null)
+  const key = review ? reviewKey(review) : ''
+  const exported = key !== '' && exportedKey === key
+  const saved = exported && confirmedKey === key
 
   useEffect(() => {
     let active = true
@@ -40,8 +53,8 @@ export function RestoreRecovery({ owner, inspect, resume, reload, logout }: {
   async function refresh() {
     setBusy(true)
     setError('')
-    setSaved(false)
-    setExported(false)
+    setConfirmedKey('')
+    setExportedKey('')
     setStatus('')
     try {
       const latest = await inspect()
@@ -59,15 +72,40 @@ export function RestoreRecovery({ owner, inspect, resume, reload, logout }: {
       if (candidate) {
         downloadBackup(encodeBackup(review[candidate]), 'aoba-recovery-' + candidate + '-' + review.id + '.json')
       } else {
-        const { id, detectedAt, before, current, proposed, base } = review
-        downloadBackup(JSON.stringify({ format: 'aoba-restore-diagnostic', version: 1, id, detectedAt,
-          before, current, proposed, base }, null, 2), 'aoba-restore-diagnostic-' + id + '.json')
-        setExported(true)
+        downloadBackup(JSON.stringify(diagnostic(review), null, 2), 'aoba-restore-diagnostic-' + review.id + '.json')
+        setConfirmedKey('')
+        setExportedKey(reviewKey(review))
       }
       setStatus('ダウンロードを開始しました。「ファイル」またはブラウザーの保存先を確認してください。')
     } catch {
       setError('この候補を通常バックアップにできませんでした。診断用JSONを保存してください。')
     }
+  }
+
+  async function verifySavedFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !review || busy) return
+    setBusy(true)
+    setError('')
+    setStatus('')
+    setConfirmedKey('')
+    setExportedKey('')
+    try {
+      const contents: unknown = JSON.parse((await file.text()).replace(/^\uFEFF/, ''))
+      const latest = await inspect()
+      if (!latest || reviewKey(latest) !== reviewKey(review)) {
+        setReview(latest)
+        setError('候補が変更されました。最新の候補と診断用JSONを確認してください。')
+      } else if (JSON.stringify(contents) !== JSON.stringify(diagnostic(latest))) {
+        setError('診断用JSONが現在の衝突候補と一致しません。ファイルを確認してください。')
+      } else {
+        setExportedKey(reviewKey(latest))
+        setStatus('保存済みの診断用JSONを照合しました。確認欄にチェックしてください。')
+      }
+    } catch {
+      setError('保存済みの診断用JSONを照合できませんでした。')
+    } finally { setBusy(false) }
   }
 
   async function confirm() {
@@ -76,8 +114,8 @@ export function RestoreRecovery({ owner, inspect, resume, reload, logout }: {
     setError('')
     try { await resume(review) }
     catch (failure) {
-      setSaved(false)
-      setExported(false)
+      setConfirmedKey('')
+      setExportedKey('')
       setError(failure instanceof Error ? failure.message : '復旧を確認できませんでした。')
     } finally { setBusy(false) }
   }
@@ -103,14 +141,16 @@ export function RestoreRecovery({ owner, inspect, resume, reload, logout }: {
       })}
       <p>通常バックアップには練習記録と試合データが含まれます。ブラウザー共通の月別目標・分類設定は含みません。診断用JSONには3つの候補と元の保存スナップショットがあり、復元画面には読み込めません。</p>
       <button className="action" disabled={busy} onClick={() => exportCandidate()}>診断用JSONを保存</button>
+      <button className="action" disabled={busy} onClick={() => savedFile.current?.click()}>保存済みの診断用JSONを確認</button>
+      <input ref={savedFile} type="file" accept=".json,application/json" hidden onChange={verifySavedFile} />
       <p>現在の練習記録と復元前の試合詳細を使って再開します。復元予定の内容は端末内に退避します。必要な場合は、保存した通常バックアップから、内容と復元先を確認して改めて復元できます。</p>
       {review.hasSettings && <p>月別目標・分類は現在の端末設定を保持します。復元が途中まで反映している場合があるため、再開後に確認してください。</p>}
       <p id="restore-export-help" className="hint">{busy ? '処理が完了するまでお待ちください。' : exported
         ? '「ファイル」などで診断用JSONの保存を確認してから、チェックを入れてください。'
-        : 'チェックを入れるには、この画面で「診断用JSONを保存」を押してください。候補の再確認やログインし直した後は、診断用JSONを保存し直してください。'}</p>
+        : '診断用JSONを保存するか、「保存済みの診断用JSONを確認」で保存済みのファイルを選んでください。候補が変わった場合は最新の診断用JSONが必要です。'}</p>
       <div className="fields">
         <label className="checkbox"><input type="checkbox" disabled={busy || !exported} checked={saved}
-          aria-describedby="restore-export-help" onChange={event => setSaved(event.target.checked)} />診断用JSONが保存されたことを確認しました</label>
+          aria-describedby="restore-export-help" onChange={event => setConfirmedKey(event.target.checked ? key : '')} />診断用JSONが保存されたことを確認しました</label>
       </div>
       <button className="action filled" disabled={busy || !saved} onClick={confirm}>現在のデータを保持して再開</button>
     </>}

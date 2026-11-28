@@ -812,11 +812,11 @@ test('試合専用DBの物理版とバックアップの互換性を4つのビ�
         field.value = ${JSON.stringify(value)}; field.dispatchEvent(new Event('change', { bubbles: true }));
       })()`)
     }
-    async function importFile(json) {
+    async function importFile(json, selector = 'input[type=file]') {
       await evaluate(`(() => {
         const transfer = new DataTransfer();
         transfer.items.add(new File([${JSON.stringify(json)}], 'synthetic.json', { type: 'application/json' }));
-        const input = document.querySelector('input[type=file]');
+        const input = document.querySelector(${JSON.stringify(selector)});
         input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
       })()`)
     }
@@ -886,7 +886,19 @@ test('試合専用DBの物理版とバックアップの互換性を4つのビ�
     await importFile(JSON.stringify(sameVersion))
     await waitFor(() => evaluate("document.body.textContent.includes('振り逃げの内訳 1件')"), 'v5 replacement preview')
     assert.equal(await evaluate("btn('全データを置き換えて復元').disabled"), true)
-    await exportFile()
+    const savedBeforeRestart = await exportFile()
+    await navigate('new')
+    await dataManagement()
+    assert.equal(await evaluate("!!document.querySelector('.restore-preview')"), false)
+    await importFile(JSON.stringify(sameVersion))
+    const savedInput = '.restore-preview input[type=file]'
+    await waitFor(() => evaluate(`!!document.querySelector(${JSON.stringify(savedInput)})`), 'reselected v5 target')
+    await importFile(JSON.stringify(sameVersion), savedInput)
+    await waitFor(() => evaluate("document.body.textContent.includes('現在の復元先のデータと一致しません')"), 'replacement cannot stand in for saved data')
+    assert.equal(await evaluate("document.querySelector('.restore-preview input[type=checkbox]').disabled"), true)
+    await importFile(JSON.stringify(savedBeforeRestart), savedInput)
+    await waitFor(() => evaluate("!document.querySelector('.restore-preview input[type=checkbox]').disabled"), 'saved backup verified after restart')
+    assert.equal(await evaluate("btn('全データを置き換えて復元').disabled"), true)
     await evaluate("document.querySelector('.restore-preview input[type=checkbox]').click()")
     await click('全データを置き換えて復元')
     await waitFor(() => evaluate("document.body.textContent.includes('バックアップから復元しました。')"), 'file and consent permit v5 replacement')

@@ -65,7 +65,7 @@ test('メニュー付き試合の反省を分離し、旧版相当の編集・�
   expect(moved.matches).toEqual(data.matches)
   const orphan = deleteRecord(moved, id)
   validateData(orphan)
-  expect(renderToStaticMarkup(<Records data={orphan} commit={vi.fn()} />)).toContain('元の試合記録が見つからない振り返り')
+  expect(renderToStaticMarkup(<Records data={orphan} commit={vi.fn()} />)).toContain('関連する練習記録がありません')
   expect(deleteMatch(data, id, true)).toEqual(initialData())
   expect(() => saveRecord(initialData(), { ...draft, kind: '自主練' }, undefined, now)).toThrow('有効な練習メニュー')
 })
